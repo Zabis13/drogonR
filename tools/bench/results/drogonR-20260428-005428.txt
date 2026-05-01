@@ -1,0 +1,10 @@
+# drogonR  2026-04-28T00:54:29+03:00
+# wrk -t4 -c50 -d30s http://127.0.0.1:8080/ping
+Running 30s test @ http://127.0.0.1:8080/ping
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     5.53ms    1.38ms  30.70ms   96.26%
+    Req/Sec     2.20k   189.86     2.49k    84.17%
+  262812 requests in 30.01s, 35.59MB read
+Requests/sec:   8758.01
+Transfer/sec:      1.19MB

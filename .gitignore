@@ -1,0 +1,13 @@
+CLAUDE.md
+TODO.md
+
+# R package
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rcheck/
+*.tar.gz
+src/*.o
+src/*.so
+src/Makevars

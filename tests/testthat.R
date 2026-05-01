@@ -1,0 +1,32 @@
+library(testthat)
+library(drogonR)
+
+# Heavy tests — anything that starts a real server, opens sockets, or
+# does end-to-end HTTP. These run only outside of CRAN (NOT_CRAN=true)
+# so the CRAN check farm doesn't block on networking.
+heavy <- c(
+  # Populated as the C++ bridge and R API land (tasks #3, #4).
+  # Examples: "server-lifecycle", "routes-get-post", "backpressure"
+)
+
+on_cran <- !identical(Sys.getenv("NOT_CRAN"), "true")
+
+test_dir <- if (dir.exists("testthat")) "testthat" else "tests/testthat"
+
+if (on_cran) {
+  message("--- RUNNING LIGHT TESTS ONLY ---")
+
+  all_tests <- list.files(test_dir, pattern = "^test-.*\\.R$")
+  all_names <- sub("^test-(.*)\\.R$", "\\1", all_tests)
+
+  light_tests <- setdiff(all_names, heavy)
+
+  if (length(light_tests) == 0) {
+    test_check("drogonR")
+  } else {
+    filter_regex <- paste(light_tests, collapse = "|")
+    test_check("drogonR", filter = filter_regex)
+  }
+} else {
+  test_check("drogonR")
+}

@@ -1,0 +1,33 @@
+Bundled third-party software
+============================
+
+drogonR is licensed under MIT. Vendored dependencies use their own
+licenses: Drogon — MIT, Trantor — 3-clause BSD, JsonCpp — MIT/Public
+Domain. All are compatible with the MIT license of drogonR itself.
+
+This package bundles the following third-party libraries in `src/drogon/`,
+which are compiled together with the package source.
+
+1. Drogon (https://github.com/drogonframework/drogon)
+   Copyright (c) 2019-2023 An Tao and contributors
+   License: MIT
+   Source: src/drogon/lib/
+
+2. Trantor (https://github.com/an-tao/trantor)
+   Copyright (c) 2016-2021 An Tao and contributors
+   License: 3-clause BSD (compatible with MIT)
+   Source: src/drogon/trantor/
+   Note: Trantor is derived from the Muduo library
+         Copyright (c) 2010, Shuo Chen, also under 3-clause BSD.
+
+3. JsonCpp (https://github.com/open-source-parsers/jsoncpp)
+   Original author: Baptiste Lepilleur
+   Current maintainer: Christopher Dunn
+   See src/drogon/third_party/jsoncpp/AUTHORS for the full contributor list.
+   License: MIT (or Public Domain at the user's choice)
+   Source: src/drogon/third_party/jsoncpp/
+
+The full text of each license is preserved alongside the corresponding
+source tree. The bundled sources have been minimally modified for use
+inside an R package; modifications are clearly marked in the affected
+files (search for `DROGONR` in comments).

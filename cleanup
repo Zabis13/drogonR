@@ -1,0 +1,8 @@
+#!/bin/sh
+# Cleanup compiled objects and generated Makevars
+rm -f src/Makevars
+find src -name "*.o" -delete 2>/dev/null
+find src -name "*.so" -delete 2>/dev/null
+find src -name "*.dylib" -delete 2>/dev/null
+find src -name "*.a" -delete 2>/dev/null
+exit 0

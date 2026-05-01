@@ -1,0 +1,48 @@
+# Pure-R unit tests for route registration. No server needed — we
+# inspect the app$routes table directly. These cover dr_put / dr_delete
+# (otherwise untouched) plus the input-validation paths shared across
+# all four methods, plus the dr_get_cpp() v0.2 stub.
+
+test_that("dr_get / dr_post / dr_put / dr_delete each register under the right key", {
+  app <- dr_app() |>
+    dr_get   ("/items",     function(req) "g") |>
+    dr_post  ("/items",     function(req) "p") |>
+    dr_put   ("/items/:id", function(req) "u") |>
+    dr_delete("/items/:id", function(req) "d")
+
+  expect_named(app$routes,
+               c("GET /items", "POST /items",
+                 "PUT /items/:id", "DELETE /items/:id"),
+               ignore.order = TRUE)
+  expect_equal(app$routes[["PUT /items/:id"]]$method,    "PUT")
+  expect_equal(app$routes[["DELETE /items/:id"]]$method, "DELETE")
+})
+
+test_that("registering the same method+path twice warns and overwrites", {
+  app <- dr_app() |> dr_get("/x", function(req) "first")
+  expect_warning(
+    app <- dr_get(app, "/x", function(req) "second"),
+    "overwriting"
+  )
+  # Same key, but the handler must be the new one. Smoke-test by calling.
+  expect_equal(app$routes[["GET /x"]]$handler(NULL), "second")
+})
+
+test_that("dr_put / dr_delete reject non-app, non-function, non-string inputs", {
+  app <- dr_app()
+  expect_error(dr_put(list(), "/x", function(req) ""), "drogon_app")
+  expect_error(dr_put(app, "/x", "not a function"),    "function")
+  expect_error(dr_put(app, c("/a", "/b"), function(req) ""), "single string")
+
+  expect_error(dr_delete(list(), "/x", function(req) ""), "drogon_app")
+  expect_error(dr_delete(app, "/x", 42),                  "function")
+  expect_error(dr_delete(app, NA_character_, function(req) ""), "single string")
+})
+
+test_that("dr_get_cpp is a stub that errors with a v0.2 hint", {
+  app <- dr_app()
+  expect_error(dr_get_cpp(app, "/native", function(req) ""),
+               "not yet implemented")
+  expect_error(dr_get_cpp(app, "/native", function(req) ""),
+               "v0.2")
+})

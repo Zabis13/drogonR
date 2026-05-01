@@ -1,0 +1,10 @@
+# drogonR profile  2026-05-01T08:55:59+03:00
+# route=/ping  threads=4  connections=100
+Running 30s test @ http://127.0.0.1:8080/ping
+  4 threads and 100 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    10.88ms    1.82ms  39.16ms   96.47%
+    Req/Sec     2.32k   140.52     2.53k    79.00%
+  277132 requests in 30.02s, 37.53MB read
+Requests/sec:   9232.64
+Transfer/sec:      1.25MB

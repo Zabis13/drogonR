@@ -1,0 +1,161 @@
+CXX_STD = CXX17
+
+# --- Substituted by configure --------------------------------------------
+TLS_CPPFLAGS            = @TLS_CPPFLAGS@
+TLS_LIBS                = @TLS_LIBS@
+TLS_OBJECTS             = @TLS_OBJECTS@
+CRYPTO_FALLBACK_OBJECTS = @CRYPTO_FALLBACK_OBJECTS@
+POLLER_OBJECTS          = @POLLER_OBJECTS@
+FILEBUF_OBJECTS         = @FILEBUF_OBJECTS@
+PLATFORM_LIBS           = @PLATFORM_LIBS@
+
+# --- Include paths -------------------------------------------------------
+DROGON_CPPFLAGS = \
+  -I. \
+  -Idrogon \
+  -Idrogon/lib/inc \
+  -Idrogon/lib/src \
+  -Idrogon/trantor/net \
+  -Idrogon/trantor/net/inner \
+  -Idrogon/trantor/net/inner/poller \
+  -Idrogon/trantor/net/inner/tlsprovider \
+  -Idrogon/trantor/utils \
+  -Idrogon/trantor/utils/crypto \
+  -Idrogon/trantor/exports \
+  -Idrogon/third_party/jsoncpp/include \
+  -Idrogon/third_party/jsoncpp/src
+
+DROGON_DEFINES = \
+  -DDROGONR_NO_LIBUUID \
+  -DDROGONR_NO_YAML \
+  -DJSON_USE_EXCEPTION=1 \
+  -DJSONCPP_NO_LOCALE_SUPPORT
+
+PKG_CPPFLAGS = $(DROGON_CPPFLAGS) $(DROGON_DEFINES) $(TLS_CPPFLAGS) \
+  -I'$(R_LIBRARY_DIR)/later/include' \
+  -I"`\"${R_HOME}/bin/Rscript\" -e 'cat(system.file(\"include\", package = \"later\"))'`"
+PKG_CXXFLAGS =
+PKG_LIBS = $(TLS_LIBS) $(PLATFORM_LIBS) -lz
+
+# --- jsoncpp objects -----------------------------------------------------
+JSONCPP_OBJECTS = \
+  drogon/third_party/jsoncpp/src/json_reader.o \
+  drogon/third_party/jsoncpp/src/json_value.o \
+  drogon/third_party/jsoncpp/src/json_writer.o
+
+# --- trantor objects -----------------------------------------------------
+TRANTOR_NET_OBJECTS = \
+  drogon/trantor/net/Channel.o \
+  drogon/trantor/net/EventLoop.o \
+  drogon/trantor/net/EventLoopThread.o \
+  drogon/trantor/net/EventLoopThreadPool.o \
+  drogon/trantor/net/InetAddress.o \
+  drogon/trantor/net/TcpClient.o \
+  drogon/trantor/net/TcpServer.o
+
+TRANTOR_INNER_OBJECTS = \
+  drogon/trantor/net/inner/Acceptor.o \
+  drogon/trantor/net/inner/AsyncStreamBufferNode.o \
+  drogon/trantor/net/inner/Connector.o \
+  drogon/trantor/net/inner/MemBufferNode.o \
+  drogon/trantor/net/inner/NormalResolver.o \
+  drogon/trantor/net/inner/Poller.o \
+  drogon/trantor/net/inner/Socket.o \
+  drogon/trantor/net/inner/StreamBufferNode.o \
+  drogon/trantor/net/inner/TcpConnectionImpl.o \
+  drogon/trantor/net/inner/Timer.o \
+  drogon/trantor/net/inner/TimerQueue.o
+
+TRANTOR_UTILS_OBJECTS = \
+  drogon/trantor/utils/AsyncFileLogger.o \
+  drogon/trantor/utils/ConcurrentTaskQueue.o \
+  drogon/trantor/utils/Date.o \
+  drogon/trantor/utils/Logger.o \
+  drogon/trantor/utils/LogStream.o \
+  drogon/trantor/utils/MsgBuffer.o \
+  drogon/trantor/utils/SerialTaskQueue.o \
+  drogon/trantor/utils/TimingWheel.o \
+  drogon/trantor/utils/Utilities.o
+
+TRANTOR_CRYPTO_OBJECTS = $(CRYPTO_FALLBACK_OBJECTS)
+
+# --- drogon objects ------------------------------------------------------
+DROGON_OBJECTS = \
+  drogon/lib/src/AOPAdvice.o \
+  drogon/lib/src/AccessLogger.o \
+  drogon/lib/src/CacheFile.o \
+  drogon/lib/src/ConfigAdapterManager.o \
+  drogon/lib/src/ConfigLoader.o \
+  drogon/lib/src/Cookie.o \
+  drogon/lib/src/DbClientManagerSkipped.o \
+  drogon/lib/src/DrClassMap.o \
+  drogon/lib/src/DrTemplateBase.o \
+  drogon/lib/src/FixedWindowRateLimiter.o \
+  drogon/lib/src/GlobalFilters.o \
+  drogon/lib/src/Histogram.o \
+  drogon/lib/src/Hodor.o \
+  drogon/lib/src/HttpAppFrameworkImpl.o \
+  drogon/lib/src/HttpBinder.o \
+  drogon/lib/src/HttpClientImpl.o \
+  drogon/lib/src/HttpConnectionLimit.o \
+  drogon/lib/src/HttpControllerBinder.o \
+  drogon/lib/src/HttpControllersRouter.o \
+  drogon/lib/src/HttpFileImpl.o \
+  drogon/lib/src/HttpFileUploadRequest.o \
+  drogon/lib/src/HttpRequestImpl.o \
+  drogon/lib/src/HttpRequestParser.o \
+  drogon/lib/src/HttpResponseImpl.o \
+  drogon/lib/src/HttpResponseParser.o \
+  drogon/lib/src/HttpServer.o \
+  drogon/lib/src/HttpUtils.o \
+  drogon/lib/src/HttpViewData.o \
+  drogon/lib/src/IntranetIpFilter.o \
+  drogon/lib/src/JsonConfigAdapter.o \
+  drogon/lib/src/ListenerManager.o \
+  drogon/lib/src/LocalHostFilter.o \
+  drogon/lib/src/MiddlewaresFunction.o \
+  drogon/lib/src/MultiPart.o \
+  drogon/lib/src/MultipartStreamParser.o \
+  drogon/lib/src/NotFound.o \
+  drogon/lib/src/PluginsManager.o \
+  drogon/lib/src/PromExporter.o \
+  drogon/lib/src/RangeParser.o \
+  drogon/lib/src/RateLimiter.o \
+  drogon/lib/src/RealIpResolver.o \
+  drogon/lib/src/Redirector.o \
+  drogon/lib/src/RedisClientManagerSkipped.o \
+  drogon/lib/src/RedisClientSkipped.o \
+  drogon/lib/src/RedisResultSkipped.o \
+  drogon/lib/src/RequestStream.o \
+  drogon/lib/src/SecureSSLRedirector.o \
+  drogon/lib/src/SessionManager.o \
+  drogon/lib/src/SharedLibManager.o \
+  drogon/lib/src/SlashRemover.o \
+  drogon/lib/src/SlidingWindowRateLimiter.o \
+  drogon/lib/src/StaticFileRouter.o \
+  drogon/lib/src/TaskTimeoutFlag.o \
+  drogon/lib/src/TokenBucketRateLimiter.o \
+  drogon/lib/src/Utilities.o \
+  drogon/lib/src/WebSocketClientImpl.o \
+  drogon/lib/src/WebSocketConnectionImpl.o
+
+# --- drogonR bridge objects ---------------------------------------------
+BRIDGE_OBJECTS = \
+  r_bridge.o \
+  drogon_server.o \
+  request_queue.o \
+  r_dispatcher.o \
+  json_writer.o
+
+# --- All objects ---------------------------------------------------------
+OBJECTS = \
+  $(BRIDGE_OBJECTS) \
+  $(DROGON_OBJECTS) \
+  $(TRANTOR_NET_OBJECTS) \
+  $(TRANTOR_INNER_OBJECTS) \
+  $(TRANTOR_UTILS_OBJECTS) \
+  $(TRANTOR_CRYPTO_OBJECTS) \
+  $(JSONCPP_OBJECTS) \
+  $(POLLER_OBJECTS) \
+  $(FILEBUF_OBJECTS) \
+  $(TLS_OBJECTS)

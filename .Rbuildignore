@@ -1,0 +1,12 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.claude$
+^CLAUDE\.md$
+^TODO\.md$
+^LICENSE\.md$
+^cran-comments\.md$
+^CRAN-SUBMISSION$
+^drogonR_architecture\.md$
+^uploads$
+^\.Rhistory$
+^\.gitignore$

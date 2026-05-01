@@ -1,0 +1,130 @@
+#!/bin/sh
+# Configure script for drogonR
+# Detects platform, OpenSSL (optional, for HTTPS), and assembles Makevars.
+
+set -e
+
+USE_OPENSSL="auto"
+HOST=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --with-openssl)    USE_OPENSSL="yes" ;;
+    --without-openssl) USE_OPENSSL="no" ;;
+    --host=*)          HOST="${arg#--host=}" ;;
+  esac
+done
+
+R_HOME="${R_HOME:-$(R RHOME)}"
+echo "R_HOME=$R_HOME"
+
+# --- OS detection ---------------------------------------------------------
+OS=$(uname -s 2>/dev/null || echo "unknown")
+echo "OS: $OS"
+
+POLLER_OBJECTS=""
+FILEBUF_OBJECTS="drogon/trantor/net/inner/FileBufferNodeUnix.o"
+PLATFORM_LIBS="-lpthread"
+
+case "$OS" in
+  Linux)
+    POLLER_OBJECTS="drogon/trantor/net/inner/poller/EpollPoller.o drogon/trantor/net/inner/poller/PollPoller.o"
+    PLATFORM_LIBS="$PLATFORM_LIBS -ldl"
+    ;;
+  Darwin|FreeBSD|OpenBSD|NetBSD)
+    POLLER_OBJECTS="drogon/trantor/net/inner/poller/KQueue.o drogon/trantor/net/inner/poller/PollPoller.o"
+    ;;
+  *)
+    echo "Unsupported OS: $OS, falling back to PollPoller"
+    POLLER_OBJECTS="drogon/trantor/net/inner/poller/PollPoller.o"
+    ;;
+esac
+
+# --- OpenSSL detection ----------------------------------------------------
+TLS_CPPFLAGS=""
+TLS_LIBS=""
+TLS_OBJECTS=""
+
+detect_openssl_pkgconfig() {
+  command -v pkg-config >/dev/null 2>&1 || return 1
+  pkg-config --exists openssl 2>/dev/null || return 1
+  TLS_CPPFLAGS=$(pkg-config --cflags openssl 2>/dev/null)
+  TLS_LIBS=$(pkg-config --libs openssl 2>/dev/null)
+  return 0
+}
+
+detect_openssl_manual() {
+  for prefix in /usr /usr/local /opt/homebrew /opt/local; do
+    if [ -f "$prefix/include/openssl/ssl.h" ] && \
+       { [ -f "$prefix/lib/libssl.so" ] || [ -f "$prefix/lib/libssl.dylib" ] || \
+         [ -f "$prefix/lib/libssl.a" ] || [ -f "$prefix/lib64/libssl.so" ]; }; then
+      TLS_CPPFLAGS="-I$prefix/include"
+      [ "$prefix" != "/usr" ] && TLS_LIBS="-L$prefix/lib -lssl -lcrypto" || TLS_LIBS="-lssl -lcrypto"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if [ "$USE_OPENSSL" = "no" ]; then
+  echo "OpenSSL: disabled by --without-openssl"
+  USE_OPENSSL="no"
+elif [ "$USE_OPENSSL" = "yes" ]; then
+  echo "OpenSSL: forced by --with-openssl"
+  if ! detect_openssl_pkgconfig && ! detect_openssl_manual; then
+    echo "ERROR: --with-openssl was requested but OpenSSL was not found."
+    echo "  Install: apt install libssl-dev (Debian/Ubuntu)"
+    echo "           brew install openssl (macOS)"
+    exit 1
+  fi
+else
+  # auto: try pkg-config, then manual, then silent disable
+  if detect_openssl_pkgconfig; then
+    USE_OPENSSL="yes"
+    echo "OpenSSL: found via pkg-config"
+  elif detect_openssl_manual; then
+    USE_OPENSSL="yes"
+    echo "OpenSSL: found via manual search"
+  else
+    USE_OPENSSL="no"
+    echo ""
+    echo "Note: OpenSSL not found. Building without HTTPS support."
+    echo "  To enable HTTPS, install libssl-dev (Debian/Ubuntu) or openssl (macOS),"
+    echo "  then reinstall this package."
+    echo ""
+  fi
+fi
+
+CRYPTO_FALLBACK_OBJECTS=""
+if [ "$USE_OPENSSL" = "yes" ]; then
+  TLS_CPPFLAGS="$TLS_CPPFLAGS -DUSE_OPENSSL -DOpenSSL_FOUND"
+  # openssl.cc #include's sha3.cc/blake2.cc internally — must NOT compile them separately.
+  TLS_OBJECTS="drogon/trantor/net/inner/tlsprovider/OpenSSLProvider.o drogon/trantor/utils/crypto/openssl.o"
+  echo "  CPPFLAGS: $TLS_CPPFLAGS"
+  echo "  LIBS:     $TLS_LIBS"
+else
+  # No TLS provider → trantor compiles its own crypto fallbacks.
+  CRYPTO_FALLBACK_OBJECTS="\
+drogon/trantor/utils/crypto/sha3.o \
+drogon/trantor/utils/crypto/md5.o \
+drogon/trantor/utils/crypto/sha1.o \
+drogon/trantor/utils/crypto/sha256.o \
+drogon/trantor/utils/crypto/blake2.o"
+fi
+
+# --- Generate Makevars ----------------------------------------------------
+echo "Generating src/Makevars..."
+
+sed \
+  -e "s|@TLS_CPPFLAGS@|$TLS_CPPFLAGS|g" \
+  -e "s|@TLS_LIBS@|$TLS_LIBS|g" \
+  -e "s|@TLS_OBJECTS@|$TLS_OBJECTS|g" \
+  -e "s|@CRYPTO_FALLBACK_OBJECTS@|$CRYPTO_FALLBACK_OBJECTS|g" \
+  -e "s|@POLLER_OBJECTS@|$POLLER_OBJECTS|g" \
+  -e "s|@FILEBUF_OBJECTS@|$FILEBUF_OBJECTS|g" \
+  -e "s|@PLATFORM_LIBS@|$PLATFORM_LIBS|g" \
+  src/Makevars.in > src/Makevars
+
+echo "Configuration complete."
+echo "  Platform:   $OS"
+echo "  TLS:        $([ "$USE_OPENSSL" = "yes" ] && echo "ENABLED (OpenSSL)" || echo "disabled")"

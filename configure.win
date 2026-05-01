@@ -25,7 +25,7 @@ else
 fi
 
 LATER_INCLUDE=$("$RSCRIPT" -e "cat(system.file('include', package='later'))" 2>/dev/null)
-if [ -z "$LATER_INCLUDE" ] || [ ! -f "$LATER_INCLUDE/later.h" ]; then
+if [ -z "$LATER_INCLUDE" ] || [ ! -f "$LATER_INCLUDE/later_api.h" ]; then
   echo "ERROR: 'later' package headers not found."
   echo "  Looked under: ${LATER_INCLUDE:-(empty)}"
   echo ""

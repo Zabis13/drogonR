@@ -20,7 +20,7 @@ echo "R_HOME=$R_HOME"
 
 # --- Resolve later include path -----------------------------------------
 # Don't rely on R auto-adding LinkingTo include paths — on some CI images
-# (rhub gcc13) that path is empty and <later.h> is not found. Resolve it
+# (rhub gcc13) that path is empty and <later_api.h> is not found. Resolve it
 # explicitly via system.file() and pass it as -I to the compiler.
 if [ -n "$R_HOME" ]; then
   RSCRIPT="${R_HOME}/bin/Rscript"
@@ -29,7 +29,7 @@ else
 fi
 
 LATER_INCLUDE=$("$RSCRIPT" -e "cat(system.file('include', package='later'))" 2>/dev/null)
-if [ -z "$LATER_INCLUDE" ] || [ ! -f "$LATER_INCLUDE/later.h" ]; then
+if [ -z "$LATER_INCLUDE" ] || [ ! -f "$LATER_INCLUDE/later_api.h" ]; then
   echo "ERROR: 'later' package headers not found."
   echo "  Looked under: ${LATER_INCLUDE:-(empty)}"
   echo ""

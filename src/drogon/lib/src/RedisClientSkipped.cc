@@ -13,6 +13,9 @@
  */
 
 #include "drogon/nosql/RedisClient.h"
+// drogonR: throw instead of abort() — CRAN forbids abort in package .so.
+// This stub is unreachable (hiredis not linked).
+#include <stdexcept>
 
 namespace drogon
 {
@@ -27,7 +30,8 @@ std::shared_ptr<RedisClient> RedisClient::newRedisClient(
 {
     LOG_FATAL << "Redis is not supported by drogon, please install the "
                  "hiredis library first.";
-    abort();
+    // drogonR: was abort().
+    throw std::runtime_error("drogon: hiredis not linked");
 }
 }  // namespace nosql
 }  // namespace drogon

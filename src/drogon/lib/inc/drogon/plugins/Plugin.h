@@ -16,6 +16,9 @@
 #include <drogon/DrObject.h>
 #include <json/json.h>
 #include <memory>
+// drogonR: throw instead of abort() on circular plugin dependency
+// (CRAN forbids abort in package .so).
+#include <stdexcept>
 #include <trantor/utils/Logger.h>
 #include <trantor/utils/NonCopyable.h>
 
@@ -58,7 +61,9 @@ class DROGON_EXPORT PluginBase : public virtual DrObjectBase,
         else
         {
             LOG_FATAL << "There are a circular dependency within plugins.";
-            abort();
+            // drogonR: was abort().
+            throw std::runtime_error(
+                "drogon: circular plugin dependency");
         }
     }
 

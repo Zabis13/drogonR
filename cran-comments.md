@@ -22,10 +22,11 @@ Expected NOTEs:
   by the bundled build.
 
 * **Authors with role 'cph' but no obvious copyright**: the `cph`
-  entries (`an-tao`, `Baptiste Lepilleur`) are upstream authors of the
-  bundled libraries (Drogon/Trantor and JsonCpp respectively). Their
-  copyright notices are preserved in the source tree and listed in
-  `LICENSE.note`.
+  entries (An Tao, Shuo Chen, Baptiste Lepilleur, JsonCpp Contributors)
+  are upstream authors of the bundled libraries (Drogon/Trantor, the
+  Muduo library on which Trantor is based, and JsonCpp respectively).
+  Their copyright notices are preserved in the bundled source tree
+  (see the LICENSE files under `src/drogon/`).
 
 ## Test environments
 

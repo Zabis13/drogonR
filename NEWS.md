@@ -1,7 +1,12 @@
 # drogonR 0.1.3
 
-Fast-path handlers: Bypass R-side tryCatch/middleware, registering directly in C++. 
-Hits 147k req/s (2.5x boost).dr_json(): New C++ walker for basic types replaces jsonlite. Hits 118k req/s (12x boost) with silent fallback.Request objects: Built in C++ as classed lists instead of R environments for lower overhead.Stable Workers: Switched from mcparallel (fork) to processx (spawn). Fixes later fds and sink stack issues in tests; ensures a clean R state for each worker.Deps: Added processx to Imports.
+* Fast-path handlers: bypass R-side tryCatch/middleware, registering
+  directly in C++. Hits 147k req/s (2.5x boost).
+* `dr_json()`: new C++ walker for basic types replaces jsonlite. Hits
+  118k req/s (12x boost) with silent fallback.
+* Stable workers: switched from `mcparallel` (fork) to `processx`
+  (spawn). Fixes `later` fds and sink stack issues in tests; ensures
+  a clean R state for each worker.
 
 
 # drogonR 0.1.2

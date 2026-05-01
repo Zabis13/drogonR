@@ -17,6 +17,9 @@
 #include <drogon/config.h>
 #include <fstream>
 #include <iostream>
+// drogonR: throw instead of abort() in config validation (CRAN forbids
+// abort/exit in package .so).
+#include <stdexcept>
 #include <sstream>
 #include <thread>
 #include <trantor/utils/Logger.h>
@@ -661,7 +664,9 @@ static void loadListeners(const Json::Value &listeners)
                 {
                     LOG_FATAL << "SSL configuration option should be an 1 or "
                                  "2-element array";
-                    abort();
+                    // drogonR: was abort().
+                    throw std::runtime_error(
+                        "drogon: invalid SSL configuration option");
                 }
                 sslConfCmds.emplace_back(opt[0].asString(),
                                          opt.get(1, "").asString());
@@ -689,7 +694,9 @@ static void loadSSL(const Json::Value &sslConf)
             {
                 LOG_FATAL << "SSL configuration option should be an 1 or "
                              "2-element array";
-                abort();
+                // drogonR: was abort().
+                throw std::runtime_error(
+                    "drogon: invalid SSL configuration option");
             }
             sslConfCmds.emplace_back(opt[0].asString(),
                                      opt.get(1, "").asString());

@@ -26,6 +26,7 @@ Other contributors:
   \item Baptiste Lepilleur (Original author of the bundled JsonCpp library) [contributor, copyright holder]
   \item Christopher Dunn (Maintainer of JsonCpp) [contributor]
   \item  JsonCpp Contributors (See src/drogon/third_party/jsoncpp/AUTHORS in the package source) [contributor, copyright holder]
+  \item Bert Belder (Author of the bundled wepoll library (Windows epoll shim)) [contributor, copyright holder]
 }
 
 }

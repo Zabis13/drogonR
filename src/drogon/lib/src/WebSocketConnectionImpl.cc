@@ -18,6 +18,8 @@
 #include <json/writer.h>
 #include <thread>
 #include <limits>
+// drogonR: throw instead of abort() — CRAN forbids abort in package .so.
+#include <stdexcept>
 
 using namespace drogon;
 
@@ -127,7 +129,9 @@ void WebSocketConnectionImpl::sendWsData(const char *msg,
                 {
                     LOG_ERROR << "Failed to generate random numbers for "
                                  "WebSocket mask";
-                    abort();
+                    // drogonR: was abort().
+                    throw std::runtime_error(
+                        "drogon: secureRandomBytes() failed for WebSocket mask");
                 }
             }
             random = masks_.back();
@@ -141,7 +145,9 @@ void WebSocketConnectionImpl::sendWsData(const char *msg,
             {
                 LOG_ERROR
                     << "Failed to generate random numbers for WebSocket mask";
-                abort();
+                // drogonR: was abort().
+                throw std::runtime_error(
+                    "drogon: secureRandomBytes() failed for WebSocket mask");
             }
         }
 

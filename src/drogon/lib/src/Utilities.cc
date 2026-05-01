@@ -34,6 +34,9 @@
 #include <zlib.h>
 #include <sstream>
 #include <string>
+// drogonR: throw instead of abort() in brotli-disabled stubs (CRAN forbids
+// abort in package .so).
+#include <stdexcept>
 #include <mutex>
 #include <random>
 #include <algorithm>
@@ -1276,14 +1279,16 @@ std::string brotliCompress(const char * /*data*/, const size_t /*ndata*/)
 {
     LOG_ERROR << "If you do not have the brotli package installed, you cannot "
                  "use brotliCompress()";
-    abort();
+    // drogonR: was abort().
+    throw std::runtime_error("drogon: brotli not built — brotliCompress() unavailable");
 }
 
 std::string brotliDecompress(const char * /*data*/, const size_t /*ndata*/)
 {
     LOG_ERROR << "If you do not have the brotli package installed, you cannot "
                  "use brotliDecompress()";
-    abort();
+    // drogonR: was abort().
+    throw std::runtime_error("drogon: brotli not built — brotliDecompress() unavailable");
 }
 #endif
 

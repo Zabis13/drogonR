@@ -16,7 +16,9 @@ Authors@R: c(
     person("Christopher", "Dunn", role = "ctb",
         comment = "Maintainer of JsonCpp"),
     person(family = "JsonCpp Contributors", role = c("ctb", "cph"),
-        comment = "See src/drogon/third_party/jsoncpp/AUTHORS in the package source"))
+        comment = "See src/drogon/third_party/jsoncpp/AUTHORS in the package source"),
+    person("Bert", "Belder", role = c("ctb", "cph"),
+        comment = "Author of the bundled wepoll library (Windows epoll shim)"))
 Description: Provides an 'R' interface to the 'Drogon' high-performance
     'C++' 'HTTP' server framework. Offers a 'plumber'-style application
     programming interface for building 'REST' services from 'R' with

@@ -20,6 +20,10 @@
 #include <drogon/HttpSimpleController.h>
 #include <drogon/WebSocketController.h>
 #include <algorithm>
+// drogonR: throw instead of exit(1) on invalid route placeholders
+// (CRAN forbids exit in package .so). Called from route registration on
+// the main thread before I/O loops start, so unwinding is safe.
+#include <stdexcept>
 
 using namespace drogon;
 
@@ -371,7 +375,7 @@ void HttpControllersRouter::addHttpPath(
                               << ") out of range (1 to " << binder->paramCount()
                               << ")";
                     LOG_ERROR << "Path pattern: " << path;
-                    exit(1);
+                    throw std::runtime_error("drogon: invalid route placeholder pattern");
                 }
                 if (!std::all_of(places.begin(),
                                  places.end(),
@@ -380,7 +384,7 @@ void HttpControllersRouter::addHttpPath(
                     LOG_ERROR << "Parameter placeholders are duplicated: index="
                               << place;
                     LOG_ERROR << "Path pattern: " << path;
-                    exit(1);
+                    throw std::runtime_error("drogon: invalid route placeholder pattern");
                 }
                 places.push_back(place);
             }
@@ -399,7 +403,7 @@ void HttpControllersRouter::addHttpPath(
                                   << ") out of range (1 to "
                                   << binder->paramCount() << ")";
                         LOG_ERROR << "Path pattern: " << path;
-                        exit(1);
+                        throw std::runtime_error("drogon: invalid route placeholder pattern");
                     }
                     if (!std::all_of(places.begin(),
                                      places.end(),
@@ -409,7 +413,7 @@ void HttpControllersRouter::addHttpPath(
                             << "Parameter placeholders are duplicated: index="
                             << place;
                         LOG_ERROR << "Path pattern: " << path;
-                        exit(1);
+                        throw std::runtime_error("drogon: invalid route placeholder pattern");
                     }
                     places.push_back(place);
                 }
@@ -425,7 +429,7 @@ void HttpControllersRouter::addHttpPath(
                             << "Parameter placeholders are duplicated: index="
                             << placeIndex;
                         LOG_ERROR << "Path pattern: " << path;
-                        exit(1);
+                        throw std::runtime_error("drogon: invalid route placeholder pattern");
                     }
                     places.push_back(placeIndex);
                 }
@@ -456,7 +460,7 @@ void HttpControllersRouter::addHttpPath(
                                   << ") out of range (1 to "
                                   << binder->paramCount() << ")";
                         LOG_ERROR << "Path pattern: " << path;
-                        exit(1);
+                        throw std::runtime_error("drogon: invalid route placeholder pattern");
                     }
                     if (!std::all_of(places.begin(),
                                      places.end(),
@@ -474,7 +478,7 @@ void HttpControllersRouter::addHttpPath(
                                      "duplicated: index="
                                   << place;
                         LOG_ERROR << "Path pattern: " << path;
-                        exit(1);
+                        throw std::runtime_error("drogon: invalid route placeholder pattern");
                     }
                     parametersPlaces.emplace_back(results[1].str(), place);
                 }
@@ -494,7 +498,7 @@ void HttpControllersRouter::addHttpPath(
                                       << ") out of range (1 to "
                                       << binder->paramCount() << ")";
                             LOG_ERROR << "Path pattern: " << path;
-                            exit(1);
+                            throw std::runtime_error("drogon: invalid route placeholder pattern");
                         }
                         if (!std::all_of(places.begin(),
                                          places.end(),
@@ -512,7 +516,7 @@ void HttpControllersRouter::addHttpPath(
                                          "duplicated: index="
                                       << place;
                             LOG_ERROR << "Path pattern: " << path;
-                            exit(1);
+                            throw std::runtime_error("drogon: invalid route placeholder pattern");
                         }
                         parametersPlaces.emplace_back(results[1].str(), place);
                     }
@@ -535,7 +539,7 @@ void HttpControllersRouter::addHttpPath(
                                          "duplicated: index="
                                       << placeIndex;
                             LOG_ERROR << "Path pattern: " << path;
-                            exit(1);
+                            throw std::runtime_error("drogon: invalid route placeholder pattern");
                         }
                         parametersPlaces.emplace_back(results[1].str(),
                                                       placeIndex);

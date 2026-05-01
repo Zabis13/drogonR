@@ -14,6 +14,8 @@
 
 #include "PluginsManager.h"
 #include <trantor/utils/Logger.h>
+// drogonR: throw instead of abort() — CRAN forbids abort in package .so.
+#include <stdexcept>
 
 using namespace drogon;
 
@@ -69,7 +71,10 @@ void PluginsManager::initializeAllPlugins(
                 {
                     LOG_FATAL << "Dependent plugin " << depName.asString()
                               << " is not loaded";
-                    abort();
+                    // drogonR: was abort().
+                    throw std::runtime_error(
+                        "drogon: dependent plugin not loaded: " +
+                        depName.asString());
                 }
             }
         }

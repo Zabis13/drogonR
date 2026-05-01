@@ -27,6 +27,8 @@
 #include <string.h>
 #include <algorithm>
 #include <iostream>
+// drogonR: replace stdout/stderr writes with R's I/O routines for CRAN.
+#include <R_ext/Print.h>
 #include <functional>
 #include <chrono>
 
@@ -218,7 +220,8 @@ void AsyncFileLogger::LoggerFile::open()
 #endif
     if (fp_ == nullptr)
     {
-        std::cout << strerror_tl(errno) << std::endl;
+        // drogonR: was std::cout — error report belongs on stderr.
+        REprintf("%s\n", strerror_tl(errno));
     }
 }
 
@@ -316,10 +319,10 @@ void AsyncFileLogger::LoggerFile::initFilenameQueue()
 
     if ((dp = opendir(filePath_.c_str())) == nullptr)
     {
-        fprintf(stderr,
-                "Can't open dir %s: %s\n",
-                filePath_.c_str(),
-                strerror_tl(errno));
+        // drogonR: was fprintf(stderr, ...).
+        REprintf("Can't open dir %s: %s\n",
+                 filePath_.c_str(),
+                 strerror_tl(errno));
         return;
     }
 
@@ -339,10 +342,10 @@ void AsyncFileLogger::LoggerFile::initFilenameQueue()
         std::string fullname = filePath_ + name;
         if (stat(fullname.c_str(), &st) == -1)
         {
-            fprintf(stderr,
-                    "Can't stat file %s: %s\n",
-                    fullname.c_str(),
-                    strerror_tl(errno));
+            // drogonR: was fprintf(stderr, ...).
+            REprintf("Can't stat file %s: %s\n",
+                     fullname.c_str(),
+                     strerror_tl(errno));
             continue;
         }
         if (!S_ISREG(st.st_mode))
@@ -387,10 +390,10 @@ void AsyncFileLogger::LoggerFile::deleteOldFiles()
 #endif
         if (r != 0)
         {
-            fprintf(stderr,
-                    "Failed to remove file %s: %s\n",
-                    filename.c_str(),
-                    strerror_tl(errno));
+            // drogonR: was fprintf(stderr, ...).
+            REprintf("Failed to remove file %s: %s\n",
+                     filename.c_str(),
+                     strerror_tl(errno));
         }
     }
 }

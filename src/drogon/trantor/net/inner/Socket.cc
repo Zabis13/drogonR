@@ -14,6 +14,9 @@
 
 #include <trantor/utils/Logger.h>
 #include "Socket.h"
+// drogonR: throw instead of exit() on bind/listen failure (CRAN forbids
+// exit in package .so).
+#include <stdexcept>
 #include <assert.h>
 #include <sys/types.h>
 #ifdef _WIN32
@@ -65,7 +68,8 @@ void Socket::bindAddress(const InetAddress &localaddr)
     else
     {
         LOG_SYSERR << ", Bind address failed at " << localaddr.toIpPort();
-        exit(1);
+        // drogonR: was exit(1).
+        throw std::runtime_error("trantor: bind() failed");
     }
 }
 void Socket::listen()
@@ -75,7 +79,8 @@ void Socket::listen()
     if (ret < 0)
     {
         LOG_SYSERR << "listen failed";
-        exit(1);
+        // drogonR: was exit(1).
+        throw std::runtime_error("trantor: listen() failed");
     }
 }
 int Socket::accept(InetAddress *peeraddr)

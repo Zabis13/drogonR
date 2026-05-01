@@ -1,2 +1,7 @@
-@echo off
-
+#!/bin/sh
+# Cleanup compiled objects and generated Makevars.win
+rm -f src/Makevars.win
+find src -name "*.o" -delete 2>/dev/null
+find src -name "*.dll" -delete 2>/dev/null
+find src -name "*.a" -delete 2>/dev/null
+exit 0

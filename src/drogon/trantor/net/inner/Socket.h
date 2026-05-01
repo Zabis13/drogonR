@@ -18,6 +18,9 @@
 #include <trantor/net/InetAddress.h>
 #include <trantor/utils/Logger.h>
 #include <string>
+// drogonR: throw instead of exit() on socket failure (CRAN forbids exit
+// in package .so).
+#include <stdexcept>
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -41,7 +44,9 @@ class Socket : NonCopyable
         if (sock < 0)
         {
             LOG_SYSERR << "sockets::createNonblockingOrDie";
-            exit(1);
+            // drogonR: was exit(1).
+            throw std::runtime_error(
+                "trantor: socket() failed in createNonblockingSocketOrDie");
         }
         LOG_TRACE << "sock=" << sock;
         return sock;

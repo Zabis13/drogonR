@@ -23,6 +23,10 @@
 #include "Channel.h"
 
 #include <thread>
+// drogonR: REprintf for stderr-style messages; throw to escape fatal
+// states without abort/exit (CRAN forbids those symbols in package .so).
+#include <R_ext/Print.h>
+#include <stdexcept>
 #include <assert.h>
 #ifdef _WIN32
 #include <windows.h>
@@ -55,8 +59,9 @@ int createEventfd()
     int evtfd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (evtfd < 0)
     {
-        std::cout << "Failed in eventfd" << std::endl;
-        abort();
+        // drogonR: was std::cout + abort().
+        REprintf("Failed in eventfd\n");
+        throw std::runtime_error("trantor: eventfd() failed");
     }
 
     return evtfd;
@@ -82,7 +87,9 @@ EventLoop::EventLoop()
     if (t_loopInThisThread)
     {
         LOG_FATAL << "There is already an EventLoop in this thread";
-        exit(-1);
+        // drogonR: was exit(-1).
+        throw std::runtime_error(
+            "trantor: EventLoop already exists in this thread");
     }
     t_loopInThisThread = this;
 #ifdef __linux__
@@ -268,7 +275,9 @@ void EventLoop::abortNotInLoopThread()
 {
     LOG_FATAL << "It is forbidden to run loop on threads other than event-loop "
                  "thread";
-    exit(1);
+    // drogonR: was exit(1).
+    throw std::runtime_error(
+        "trantor: loop running on non-event-loop thread");
 }
 void EventLoop::queueInLoop(const Func &cb)
 {
@@ -398,7 +407,9 @@ void EventLoop::moveToCurrentThread()
     if (isRunning())
     {
         LOG_FATAL << "EventLoop cannot be moved when running";
-        exit(-1);
+        // drogonR: was exit(-1).
+        throw std::runtime_error(
+            "trantor: EventLoop cannot be moved when running");
     }
     if (isInLoopThread())
     {
@@ -409,7 +420,9 @@ void EventLoop::moveToCurrentThread()
     {
         LOG_FATAL << "There is already an EventLoop in this thread, you cannot "
                      "move another in";
-        exit(-1);
+        // drogonR: was exit(-1).
+        throw std::runtime_error(
+            "trantor: another EventLoop already in this thread");
     }
     *threadLocalLoopPtr_ = nullptr;
     t_loopInThisThread = this;

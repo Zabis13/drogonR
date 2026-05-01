@@ -14,6 +14,9 @@
 
 #include "DbClientManager.h"
 #include <algorithm>
+// drogonR: throw / return-empty instead of abort() — CRAN forbids abort
+// in package .so. These stubs are unreachable (no DB driver linked).
+#include <stdexcept>
 #include <stdlib.h>
 
 using namespace drogon::orm;
@@ -29,14 +32,16 @@ void DbClientManager::addDbClient(const DbConfig &)
 {
     LOG_FATAL << "No database is supported by drogon, please install the "
                  "database development library first.";
-    abort();
+    // drogonR: was abort().
+    throw std::runtime_error("drogon: no database driver linked");
 }
 
 bool DbClientManager::areAllDbClientsAvailable() const noexcept
 {
     LOG_FATAL << "No database is supported by drogon, please install the "
                  "database development library first.";
-    abort();
+    // drogonR: was abort(); noexcept forbids throw, return false.
+    return false;
 }
 
 DbClientManager::~DbClientManager()

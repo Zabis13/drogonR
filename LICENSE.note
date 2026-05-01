@@ -3,7 +3,8 @@ Bundled third-party software
 
 drogonR is licensed under MIT. Vendored dependencies use their own
 licenses: Drogon — MIT, Trantor — 3-clause BSD, JsonCpp — MIT/Public
-Domain. All are compatible with the MIT license of drogonR itself.
+Domain, wepoll — 2-clause BSD. All are compatible with the MIT license
+of drogonR itself.
 
 This package bundles the following third-party libraries in `src/drogon/`,
 which are compiled together with the package source.
@@ -26,6 +27,14 @@ which are compiled together with the package source.
    See src/drogon/third_party/jsoncpp/AUTHORS for the full contributor list.
    License: MIT (or Public Domain at the user's choice)
    Source: src/drogon/third_party/jsoncpp/
+
+4. wepoll (https://github.com/piscisaureus/wepoll)
+   Copyright (c) 2012-2020 Bert Belder
+   License: 2-clause BSD
+   Source: src/drogon/third_party/wepoll/
+   Note: Compiled and linked only on Windows builds. Provides epoll(7)
+         emulation on top of Windows IOCP, used by Trantor's poller
+         under _WIN32.
 
 The full text of each license is preserved alongside the corresponding
 source tree. The bundled sources have been minimally modified for use

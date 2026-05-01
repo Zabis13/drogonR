@@ -18,6 +18,10 @@
 #include <trantor/utils/Logger.h>
 #include "HttpAppFrameworkImpl.h"
 #include "HttpServer.h"
+// drogonR: REprintf for stderr-style messages; throw to escape fatal config
+// errors without abort/exit (CRAN forbids those symbols in package .so).
+#include <R_ext/Print.h>
+#include <stdexcept>
 #ifndef _WIN32
 #include <sys/file.h>
 #include <unistd.h>
@@ -95,7 +99,9 @@ void ListenerManager::createListeners(
                 LOG_FATAL << "Failed to parse IP address '" << ip
                           << "'. (Note: FQDN/domain names/hostnames are not "
                              "supported. Including 'localhost')";
-                abort();
+                // drogonR: was abort().
+                throw std::runtime_error(
+                    "drogon: failed to parse listener IP address");
             }
             if (i == 0 && !app().reusePort())
             {
@@ -136,10 +142,11 @@ void ListenerManager::createListeners(
                     key = globalKeyFile;
                 if (cert.empty() || key.empty())
                 {
-                    std::cerr
-                        << "You can't use https without cert file or key file"
-                        << std::endl;
-                    exit(1);
+                    // drogonR: was std::cerr + exit(1).
+                    REprintf(
+                        "You can't use https without cert file or key file\n");
+                    throw std::runtime_error(
+                        "drogon: HTTPS listener missing cert or key file");
                 }
                 auto cmds = sslConfCmds;
                 std::copy(listener.sslConfCmds_.begin(),
@@ -178,10 +185,11 @@ void ListenerManager::createListeners(
                     key = globalKeyFile;
                 if (cert.empty() || key.empty())
                 {
-                    std::cerr
-                        << "You can't use https without cert file or key file"
-                        << std::endl;
-                    exit(1);
+                    // drogonR: was std::cerr + exit(1).
+                    REprintf(
+                        "You can't use https without cert file or key file\n");
+                    throw std::runtime_error(
+                        "drogon: HTTPS listener missing cert or key file");
                 }
                 auto cmds = sslConfCmds;
                 auto policy =

@@ -20,6 +20,10 @@
 
 #include <drogon/config.h>
 #include <stdlib.h>
+// drogonR: throw instead of abort() — CRAN forbids abort in package .so.
+// The only call site is a dead-code SSLError branch; the throw is here to
+// satisfy the static symbol scan.
+#include <stdexcept>
 #include <algorithm>
 
 using namespace trantor;
@@ -138,7 +142,8 @@ void HttpClientImpl::createTcpClient()
         else
         {
             LOG_FATAL << "Invalid value for SSLError";
-            abort();
+            // drogonR: was abort().
+            throw std::runtime_error("trantor: unknown SSLError value");
         }
     });
     tcpClientPtr_->connect();

@@ -14,6 +14,9 @@
 
 #include <trantor/utils/Logger.h>
 #include <stdio.h>
+// drogonR: route default logging to R's stdout instead of fwrite/fflush(stdout)
+// — CRAN forbids direct stdio in package binaries.
+#include <R_ext/Print.h>
 #include <thread>
 #ifdef __unix__
 #include <unistd.h>
@@ -506,10 +509,12 @@ LogStream &Logger::stream()
 
 void Logger::defaultOutputFunction(const char *msg, const uint64_t len)
 {
-    fwrite(msg, 1, static_cast<size_t>(len), stdout);
+    // drogonR: Rprintf goes through R's I/O routing; %.*s avoids requiring
+    // a NUL-terminated buffer.
+    Rprintf("%.*s", static_cast<int>(len), msg);
 }
 
 void Logger::defaultFlushFunction()
 {
-    fflush(stdout);
+    // drogonR: R flushes its console itself; nothing to do here.
 }

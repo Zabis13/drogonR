@@ -21,6 +21,8 @@
 #endif
 #include <string.h>
 #include <iostream>
+// drogonR: REprintf instead of std::cerr (CRAN forbids std::cerr in package .so).
+#include <R_ext/Print.h>
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -32,7 +34,8 @@ static int createTimerfd()
     int timerfd = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (timerfd < 0)
     {
-        std::cerr << "create timerfd failed!" << std::endl;
+        // drogonR: was std::cerr.
+        REprintf("create timerfd failed!\n");
     }
     return timerfd;
 }

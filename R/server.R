@@ -264,9 +264,9 @@ dr_serve <- function(app, port = 8080L, threads = 1L,
   # worker is a fresh Rscript process running its own Drogon listener
   # on the same port via SO_REUSEPORT. The supervisor never registers
   # routes locally and never calls drogonR_server_start.
-  worker_script <- system.file("exec", "worker.R", package = "drogonR")
+  worker_script <- system.file("worker", "worker.R", package = "drogonR")
   if (!nzchar(worker_script)) {
-    stop("internal error: inst/exec/worker.R not installed with drogonR",
+    stop("internal error: inst/worker/worker.R not installed with drogonR",
          call. = FALSE)
   }
   rscript <- file.path(R.home("bin"), "Rscript")

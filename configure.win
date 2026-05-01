@@ -1,1 +1,134 @@
 #!/bin/sh
+# Configure script for drogonR (Windows / Rtools)
+# - Resolves the later package include path
+# - Auto-detects OpenSSL (Rtools ships libssl/libcrypto)
+# - Selects Windows-specific objects: wepoll for the poller, WindowsSupport,
+#   FileBufferNodeWin, ws2_32 / iphlpapi linkage.
+
+USE_OPENSSL="auto"
+
+for arg in "$@"; do
+  case "$arg" in
+    --with-openssl)    USE_OPENSSL="yes" ;;
+    --without-openssl) USE_OPENSSL="no" ;;
+  esac
+done
+
+R_HOME="${R_HOME:-$(R RHOME)}"
+echo "R_HOME=$R_HOME"
+
+# --- Resolve later include path -----------------------------------------
+if [ -n "$R_HOME" ]; then
+  RSCRIPT="${R_HOME}/bin/Rscript"
+else
+  RSCRIPT="Rscript"
+fi
+
+LATER_INCLUDE=$("$RSCRIPT" -e "cat(system.file('include', package='later'))" 2>/dev/null)
+if [ -z "$LATER_INCLUDE" ] || [ ! -f "$LATER_INCLUDE/later.h" ]; then
+  echo "ERROR: 'later' package headers not found."
+  echo "  Looked under: ${LATER_INCLUDE:-(empty)}"
+  echo "  Install/upgrade 'later' (>= 1.4.1) before building drogonR:"
+  echo "    install.packages('later')"
+  exit 1
+fi
+LATER_CPPFLAGS="-I${LATER_INCLUDE}"
+echo "later include: $LATER_INCLUDE"
+
+# --- OpenSSL auto-detection (Rtools) ------------------------------------
+# Rtools (>= 4.0) ships OpenSSL headers/libs reachable via the standard
+# include/lib search paths the R toolchain sets up. We probe by looking
+# for openssl/ssl.h in well-known Rtools locations.
+TLS_CPPFLAGS=""
+TLS_LIBS=""
+TLS_OBJECTS=""
+
+probe_openssl_win() {
+  # Rtools43/Rtools44 layouts: $RTOOLS_HOME/x86_64-w64-mingw32.static.posix
+  for prefix in \
+      "${RTOOLS43_HOME}/x86_64-w64-mingw32.static.posix" \
+      "${RTOOLS44_HOME}/x86_64-w64-mingw32.static.posix" \
+      "${RTOOLS45_HOME}/x86_64-w64-mingw32.static.posix" \
+      "/x86_64-w64-mingw32.static.posix" \
+      "/mingw64" \
+      "/usr/local"; do
+    [ -z "$prefix" ] && continue
+    if [ -f "$prefix/include/openssl/ssl.h" ]; then
+      echo "$prefix"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if [ "$USE_OPENSSL" = "no" ]; then
+  echo "OpenSSL: disabled by --without-openssl"
+elif [ "$USE_OPENSSL" = "yes" ]; then
+  echo "OpenSSL: forced by --with-openssl"
+  PREFIX=$(probe_openssl_win) || true
+  if [ -n "$PREFIX" ]; then
+    TLS_CPPFLAGS="-I$PREFIX/include -DUSE_OPENSSL -DOpenSSL_FOUND"
+  else
+    # Forced — assume Rtools toolchain default search path knows about it.
+    TLS_CPPFLAGS="-DUSE_OPENSSL -DOpenSSL_FOUND"
+  fi
+  TLS_LIBS="-lssl -lcrypto -lcrypt32 -lws2_32"
+  TLS_OBJECTS="drogon/trantor/net/inner/tlsprovider/OpenSSLProvider.o drogon/trantor/utils/crypto/openssl.o"
+else
+  PREFIX=$(probe_openssl_win) || true
+  if [ -n "$PREFIX" ]; then
+    USE_OPENSSL="yes"
+    TLS_CPPFLAGS="-I$PREFIX/include -DUSE_OPENSSL -DOpenSSL_FOUND"
+    TLS_LIBS="-lssl -lcrypto -lcrypt32 -lws2_32"
+    TLS_OBJECTS="drogon/trantor/net/inner/tlsprovider/OpenSSLProvider.o drogon/trantor/utils/crypto/openssl.o"
+    echo "OpenSSL: found at $PREFIX"
+  else
+    USE_OPENSSL="no"
+    echo "Note: OpenSSL not found in Rtools paths. Building without HTTPS support."
+  fi
+fi
+
+CRYPTO_FALLBACK_OBJECTS=""
+if [ "$USE_OPENSSL" != "yes" ]; then
+  CRYPTO_FALLBACK_OBJECTS="\
+drogon/trantor/utils/crypto/sha3.o \
+drogon/trantor/utils/crypto/md5.o \
+drogon/trantor/utils/crypto/sha1.o \
+drogon/trantor/utils/crypto/sha256.o \
+drogon/trantor/utils/crypto/blake2.o"
+fi
+
+# --- Windows poller / objects -------------------------------------------
+# Trantor's Poller.cc / EpollPoller.cc include "Wepoll.h" under _WIN32.
+# We vendor wepoll under src/drogon/third_party/wepoll/ and expose a
+# capital-W shim so trantor sources resolve the include without patches.
+WEPOLL_CPPFLAGS="-Idrogon/third_party/wepoll"
+WEPOLL_OBJECTS="drogon/third_party/wepoll/wepoll.o"
+
+# wepoll provides epoll_*, so we use EpollPoller plus PollPoller as fallback.
+POLLER_OBJECTS="drogon/trantor/net/inner/poller/EpollPoller.o drogon/trantor/net/inner/poller/PollPoller.o"
+FILEBUF_OBJECTS="drogon/trantor/net/inner/FileBufferNodeWin.o"
+WINDOWS_OBJECTS="drogon/trantor/utils/WindowsSupport.o"
+
+PLATFORM_LIBS="-lws2_32 -liphlpapi"
+
+# --- Generate Makevars.win ----------------------------------------------
+echo "Generating src/Makevars.win..."
+
+sed \
+  -e "s|@TLS_CPPFLAGS@|$TLS_CPPFLAGS|g" \
+  -e "s|@TLS_LIBS@|$TLS_LIBS|g" \
+  -e "s|@TLS_OBJECTS@|$TLS_OBJECTS|g" \
+  -e "s|@CRYPTO_FALLBACK_OBJECTS@|$CRYPTO_FALLBACK_OBJECTS|g" \
+  -e "s|@POLLER_OBJECTS@|$POLLER_OBJECTS|g" \
+  -e "s|@FILEBUF_OBJECTS@|$FILEBUF_OBJECTS|g" \
+  -e "s|@PLATFORM_LIBS@|$PLATFORM_LIBS|g" \
+  -e "s|@LATER_CPPFLAGS@|$LATER_CPPFLAGS|g" \
+  -e "s|@WEPOLL_CPPFLAGS@|$WEPOLL_CPPFLAGS|g" \
+  -e "s|@WEPOLL_OBJECTS@|$WEPOLL_OBJECTS|g" \
+  -e "s|@WINDOWS_OBJECTS@|$WINDOWS_OBJECTS|g" \
+  src/Makevars.in > src/Makevars.win
+
+echo "Configuration complete."
+echo "  Platform:   Windows (Rtools)"
+echo "  TLS:        $([ "$USE_OPENSSL" = "yes" ] && echo "ENABLED (OpenSSL)" || echo "disabled")"

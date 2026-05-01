@@ -23,9 +23,10 @@ Description: Provides an 'R' interface to the 'Drogon' high-performance
     'C++' 'HTTP' server framework. Offers a 'plumber'-style application
     programming interface for building 'REST' services from 'R' with
     substantially higher throughput.
-Depends: R (>= 4.1.0)
+Depends:
+    R (>= 4.1.0),
+    later (>= 1.4.4)
 Imports:
-    later (>= 1.4.4),
     jsonlite,
     processx
 LinkingTo:

@@ -39,7 +39,10 @@ static const R_CallMethodDef CallEntries[] = {
 
 void R_init_drogonR(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
-    R_useDynamicSymbols(dll, FALSE);
+    // Cast: <windows.h> (pulled in transitively by drogon/drogon.h on Windows)
+    // defines FALSE as an int macro, which gcc13 rejects when passed where
+    // Rboolean is expected.
+    R_useDynamicSymbols(dll, (Rboolean) FALSE);
     // later's R_GetCCallable pointers are resolved lazily on first use;
     // see registerDispatcherFd() in r_dispatcher.cpp.
 }

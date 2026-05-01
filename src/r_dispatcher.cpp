@@ -14,9 +14,12 @@
 #include <drogon/HttpResponse.h>
 #include <drogon/HttpTypes.h>
 
-#include <later.h>
-// later_api.h's static initializer is intentionally instantiated only
-// in r_bridge.cpp; here we only need the function declarations.
+// later 1.4.8+ no longer ships <later.h> as a public header — the only
+// supported include is <later_api.h>. Its anonymous-namespace static
+// initializer is per-TU and idempotent (it makes no-op calls to later::*
+// to force R_GetCCallable resolution), so including it here in addition
+// to r_bridge.cpp is safe.
+#include <later_api.h>
 
 #include "r_bridge.h"
 

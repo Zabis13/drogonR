@@ -25,7 +25,7 @@ Description: Provides an 'R' interface to the 'Drogon' high-performance
     substantially higher throughput.
 Depends: R (>= 4.1.0)
 Imports:
-    later (>= 1.4.1),
+    later (>= 1.4.4),
     jsonlite,
     processx
 LinkingTo:

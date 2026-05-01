@@ -15,7 +15,8 @@
 #include "Channel.h"
 #include <trantor/net/EventLoop.h>
 #ifdef _WIN32
-#include "Wepoll.h"
+// drogonR: lowercased to avoid Wepoll.h/wepoll.h case clash (CRAN portability).
+#include "wepoll.h"
 #define POLLIN EPOLLIN
 #define POLLPRI EPOLLPRI
 #define POLLOUT EPOLLOUT

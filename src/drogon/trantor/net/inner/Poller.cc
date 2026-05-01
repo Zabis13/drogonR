@@ -16,7 +16,10 @@
 #ifdef __linux__
 #include "poller/EpollPoller.h"
 #elif defined _WIN32
-#include "Wepoll.h"
+// drogonR: lowercased "Wepoll.h" -> "wepoll.h" so the source tree
+// does not contain two filenames differing only in case (R CMD check
+// 'portable file names' rejects this).
+#include "wepoll.h"
 #include "poller/EpollPoller.h"
 #elif defined __FreeBSD__ || defined __OpenBSD__ || defined __APPLE__
 #include "poller/KQueue.h"

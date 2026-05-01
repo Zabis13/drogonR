@@ -32,7 +32,27 @@ LATER_INCLUDE=$("$RSCRIPT" -e "cat(system.file('include', package='later'))" 2>/
 if [ -z "$LATER_INCLUDE" ] || [ ! -f "$LATER_INCLUDE/later.h" ]; then
   echo "ERROR: 'later' package headers not found."
   echo "  Looked under: ${LATER_INCLUDE:-(empty)}"
-  echo "  Install/upgrade 'later' (>= 1.4.1) before building drogonR:"
+  echo ""
+  echo "--- later diagnostics ---"
+  "$RSCRIPT" -e '
+    cat("R.version.string: ", R.version.string, "\n", sep="")
+    cat(".libPaths():\n"); print(.libPaths())
+    found <- requireNamespace("later", quietly = TRUE)
+    cat("requireNamespace(\"later\"): ", found, "\n", sep="")
+    if (found) {
+      cat("packageVersion(\"later\"): ", as.character(packageVersion("later")), "\n", sep="")
+      cat("find.package(\"later\"): ", find.package("later"), "\n", sep="")
+      inc <- system.file("include", package = "later")
+      cat("system.file(\"include\", package=\"later\"): ", inc, "\n", sep="")
+      if (nzchar(inc)) {
+        cat("contents of include dir:\n")
+        print(list.files(inc, full.names = FALSE))
+      }
+    }
+  ' 2>&1 || true
+  echo "-------------------------"
+  echo ""
+  echo "Install/upgrade 'later' (>= 1.4.4) before building drogonR:"
   echo "    install.packages('later')"
   exit 1
 fi

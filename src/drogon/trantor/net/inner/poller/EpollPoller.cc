@@ -23,7 +23,8 @@
 #include <strings.h>
 #include <iostream>
 #elif defined _WIN32
-#include "Wepoll.h"
+// drogonR: lowercased to avoid Wepoll.h/wepoll.h case clash (CRAN portability).
+#include "wepoll.h"
 #include <assert.h>
 #include <iostream>
 #include <winsock2.h>

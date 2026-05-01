@@ -8,6 +8,7 @@ CRYPTO_FALLBACK_OBJECTS = @CRYPTO_FALLBACK_OBJECTS@
 POLLER_OBJECTS          = @POLLER_OBJECTS@
 FILEBUF_OBJECTS         = @FILEBUF_OBJECTS@
 PLATFORM_LIBS           = @PLATFORM_LIBS@
+LATER_INCLUDE           = @LATER_INCLUDE@
 
 # --- Include paths -------------------------------------------------------
 DROGON_CPPFLAGS = \
@@ -31,9 +32,7 @@ DROGON_DEFINES = \
   -DJSON_USE_EXCEPTION=1 \
   -DJSONCPP_NO_LOCALE_SUPPORT
 
-PKG_CPPFLAGS = $(DROGON_CPPFLAGS) $(DROGON_DEFINES) $(TLS_CPPFLAGS) \
-  -I'$(R_LIBRARY_DIR)/later/include' \
-  -I"`\"${R_HOME}/bin/Rscript\" -e 'cat(system.file(\"include\", package = \"later\"))'`"
+PKG_CPPFLAGS = $(DROGON_CPPFLAGS) $(DROGON_DEFINES) $(TLS_CPPFLAGS) -I'$(LATER_INCLUDE)'
 PKG_CXXFLAGS =
 PKG_LIBS = $(TLS_LIBS) $(PLATFORM_LIBS) -lz
 

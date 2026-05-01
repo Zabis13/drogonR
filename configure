@@ -18,16 +18,6 @@ done
 R_HOME="${R_HOME:-$(R RHOME)}"
 echo "R_HOME=$R_HOME"
 
-# --- Resolve later package include path ----------------------------------
-RSCRIPT="${R_HOME}/bin/Rscript"
-LATER_INCLUDE=$("$RSCRIPT" -e "cat(system.file('include', package='later'))" 2>/dev/null)
-if [ -z "$LATER_INCLUDE" ] || [ ! -f "$LATER_INCLUDE/later.h" ]; then
-  echo "ERROR: 'later' package headers not found. Install it first:"
-  echo "  install.packages('later')"
-  exit 1
-fi
-echo "later include: $LATER_INCLUDE"
-
 # --- OS detection ---------------------------------------------------------
 OS=$(uname -s 2>/dev/null || echo "unknown")
 echo "OS: $OS"
@@ -133,7 +123,6 @@ sed \
   -e "s|@POLLER_OBJECTS@|$POLLER_OBJECTS|g" \
   -e "s|@FILEBUF_OBJECTS@|$FILEBUF_OBJECTS|g" \
   -e "s|@PLATFORM_LIBS@|$PLATFORM_LIBS|g" \
-  -e "s|@LATER_INCLUDE@|$LATER_INCLUDE|g" \
   src/Makevars.in > src/Makevars
 
 echo "Configuration complete."

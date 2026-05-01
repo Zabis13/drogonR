@@ -24,6 +24,7 @@ void   initQueueWakeup(int readFd, int writeFd);
 void   resetQueueWakeup();
 void   registerDispatcherFd(int readFd);
 void   unregisterDispatcherFd();
+void   requireLaterInitializedExternal();
 extern std::atomic<int> g_wakeReadFd_unused; // silence linker if unused
 
 // --- Route table ----------------------------------------------------------
@@ -159,6 +160,7 @@ SEXP drogonR_reset_fork_state(void) {
 
 SEXP drogonR_server_start(SEXP port_, SEXP threads_, SEXP upload_path_,
                           SEXP max_queue_) {
+    drogonR::requireLaterInitializedExternal();
     if (drogonR::g_running.load()) {
         Rf_error("server is already running");
     }

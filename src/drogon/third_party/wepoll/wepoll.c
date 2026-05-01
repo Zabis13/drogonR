@@ -114,14 +114,6 @@ WEPOLL_EXPORT int epoll_wait(HANDLE ephnd,
 #define WEPOLL_INTERNAL static
 #define WEPOLL_INTERNAL_EXTERN static
 
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wnonportable-system-include-path"
-#pragma clang diagnostic ignored "-Wreserved-id-macro"
-#elif defined(_MSC_VER)
-#pragma warning(push, 1)
-#endif
-
 #undef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 
@@ -131,12 +123,6 @@ WEPOLL_EXPORT int epoll_wait(HANDLE ephnd,
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
-
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#elif defined(_MSC_VER)
-#pragma warning(pop)
-#endif
 
 WEPOLL_INTERNAL int nt_global_init(void);
 

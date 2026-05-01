@@ -14,12 +14,19 @@
 #include <drogon/HttpResponse.h>
 #include <drogon/HttpTypes.h>
 
-// later 1.4.8+ no longer ships <later.h> as a public header — the only
-// supported include is <later_api.h>. Its anonymous-namespace static
-// initializer is per-TU and idempotent (it makes no-op calls to later::*
-// to force R_GetCCallable resolution), so including it here in addition
-// to r_bridge.cpp is safe.
-#include <later_api.h>
+// later 1.4.8 no longer exposes <later.h>, and <later_api.h> instantiates a
+// static LaterInitializer in an anonymous namespace which calls
+// R_GetCCallable("later", ...) the moment our DLL is loaded — before R
+// has had a chance to load later's DLL. R CMD check loads our namespace
+// in many phases that don't go through library(drogonR)/.onLoad, and
+// fails because later::execLaterNative2 isn't registered yet.
+//
+// To avoid early resolution we *don't* include <later_api.h>. Instead we
+// declare the function pointers ourselves and resolve them at .onLoad
+// time via a small C entrypoint (drogonR_init_later). All call sites
+// check the cached pointer and emit a clear error if it's still NULL —
+// belt-and-braces in case any public C entrypoint runs before init.
+#include <R_ext/Rdynload.h>
 
 #include "r_bridge.h"
 
@@ -39,6 +46,22 @@ struct Route { std::string method; std::string path; SEXP handler; };
 
 // Forward
 static void runDispatcher(int * /*event_flags*/, void *data);
+
+// later C-callable function pointers, resolved at .onLoad time via
+// drogonR_init_later() below. NULL until R-side .onLoad runs.
+typedef void (*later_fd_fn)(void (*)(int *, void *), void *, int,
+                            struct pollfd *, double, int);
+static later_fd_fn g_later_fd = NULL;
+
+// Public entrypoints that need later must call this guard first.
+static inline void requireLaterInitialized() {
+    if (g_later_fd == NULL) {
+        Rf_error("drogonR not initialized — call library(drogonR)");
+    }
+}
+
+// Externally visible guard for C entrypoints in other TUs.
+void requireLaterInitializedExternal() { requireLaterInitialized(); }
 
 namespace {
 int g_dispatcherFd = -1;
@@ -189,17 +212,15 @@ SEXP callHandlerSafely(SEXP handler, SEXP req_list, int *errorOccurred) {
 } // namespace
 
 void registerDispatcherFd(int readFd) {
+    requireLaterInitialized();
     g_dispatcherFd = readFd;
-
-    // Initialize later (no-op call to ensure the symbol is loaded).
-    later::later_fd(NULL, NULL, 0, NULL, 0);
 
     // Arm the first wait. The callback will re-arm itself on each fire.
     static struct pollfd pfd;
     pfd.fd      = g_dispatcherFd;
     pfd.events  = POLLIN;
     pfd.revents = 0;
-    later::later_fd(runDispatcher, NULL, 1, &pfd, /*secs*/ 600);
+    g_later_fd(runDispatcher, NULL, 1, &pfd, /*secs*/ 600, /*loop*/ 0);
 }
 
 void unregisterDispatcherFd() {
@@ -263,12 +284,27 @@ static void runDispatcher(int * /*event_flags*/, void * /*data*/) {
         } catch (...) { /* Drogon callback should not throw, but be safe */ }
     }
 
-    // Re-arm.
+    // Re-arm. We're already running on the main R thread inside a later
+    // callback, so g_later_fd is guaranteed non-NULL here — no extra guard.
     static struct pollfd pfd;
     pfd.fd      = g_dispatcherFd;
     pfd.events  = POLLIN;
     pfd.revents = 0;
-    later::later_fd(runDispatcher, NULL, 1, &pfd, /*secs*/ 600);
+    g_later_fd(runDispatcher, NULL, 1, &pfd, /*secs*/ 600, /*loop*/ 0);
 }
 
 } // namespace drogonR
+
+// .Call entrypoint invoked from .onLoad. Must run on the main R thread
+// after later's namespace (and DLL) has been loaded. Idempotent — safe
+// to call more than once.
+extern "C" SEXP drogonR_init_later(void) {
+    if (drogonR::g_later_fd != NULL) return R_NilValue;
+
+    DL_FUNC fd_fn = R_GetCCallable("later", "execLaterFdNative");
+    if (fd_fn == NULL) {
+        Rf_error("R_GetCCallable(\"later\", \"execLaterFdNative\") returned NULL");
+    }
+    drogonR::g_later_fd = reinterpret_cast<drogonR::later_fd_fn>(fd_fn);
+    return R_NilValue;
+}

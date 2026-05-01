@@ -5,8 +5,9 @@ library(drogonR)
 # does end-to-end HTTP. These run only outside of CRAN (NOT_CRAN=true)
 # so the CRAN check farm doesn't block on networking.
 heavy <- c(
-  # Populated as the C++ bridge and R API land (tasks #3, #4).
-  # Examples: "server-lifecycle", "routes-get-post", "backpressure"
+  "server-lifecycle",
+  "workers",
+  "backpressure"
 )
 
 on_cran <- !identical(Sys.getenv("NOT_CRAN"), "true")

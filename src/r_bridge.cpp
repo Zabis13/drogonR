@@ -8,10 +8,14 @@
 #include <drogon/drogon.h>
 #include <drogon/version.h>
 
-#include <later_api.h>
-
 #include "r_bridge.h"
 #include "json_writer.h"
+
+// Forward — defined in r_dispatcher.cpp. We avoid including <later_api.h>
+// anywhere in the package: it instantiates a static initializer that
+// would resolve later::execLaterNative2 at DLL-load time, which races
+// R CMD check phases that load our namespace before later's DLL.
+extern "C" SEXP drogonR_init_later(void);
 
 extern "C" {
 
@@ -27,6 +31,7 @@ SEXP drogonR_drogon_version(void) {
 static const R_CallMethodDef CallEntries[] = {
     {"drogonR_smoke",           (DL_FUNC) &drogonR_smoke,           0},
     {"drogonR_drogon_version",  (DL_FUNC) &drogonR_drogon_version,  0},
+    {"drogonR_init_later",      (DL_FUNC) &drogonR_init_later,      0},
     {"drogonR_server_start",    (DL_FUNC) &drogonR_server_start,    4},
     {"drogonR_server_stop",     (DL_FUNC) &drogonR_server_stop,     0},
     {"drogonR_server_running",  (DL_FUNC) &drogonR_server_running,  0},
@@ -43,8 +48,6 @@ void R_init_drogonR(DllInfo *dll) {
     // defines FALSE as an int macro, which gcc13 rejects when passed where
     // Rboolean is expected.
     R_useDynamicSymbols(dll, (Rboolean) FALSE);
-    // later's R_GetCCallable pointers are resolved lazily on first use;
-    // see registerDispatcherFd() in r_dispatcher.cpp.
 }
 
 } // extern "C"

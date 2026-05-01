@@ -24,11 +24,11 @@ Description: Provides an 'R' interface to the 'Drogon' high-performance
     programming interface for building 'REST' services from 'R' with
     substantially higher throughput.
 Depends:
-    R (>= 4.1.0),
-    later (>= 1.4.4)
+    R (>= 4.1.0)
 Imports:
     jsonlite,
-    processx
+    processx,
+    later (>= 1.4.4)
 LinkingTo:
     later
 Suggests:

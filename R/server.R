@@ -1,8 +1,13 @@
+#' @importFrom later current_loop
+#' @keywords internal
 .onLoad <- function(libname, pkgname) {
-  # Force later's event loop to initialize so the C++ dispatcher can
-  # call later_fd() / R_GetCCallable("later", "apiVersion") on the
-  # main R thread without racing the namespace load.
+  # Force later's namespace + DLL to load before resolving its
+  # C-callables. We can't use a static initializer in our .so for this
+  # (it would race R CMD check phases that load drogonR's namespace
+  # without first loading later), so we resolve lazily here.
+  loadNamespace("later")
   later::current_loop()
+  .Call(drogonR_init_later)
   invisible(NULL)
 }
 

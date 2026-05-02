@@ -8,8 +8,8 @@ APIs from R, with substantially higher throughput. The Drogon, Trantor
 and JsonCpp sources are bundled and built statically — no external
 installation of Drogon is required.
 
-> **Status:** 0.1.3, in development. Linux only. Windows support is
-> planned; see `TODO.md`.
+> **Status:** 0.1.4, in development. Linux only. Windows source
+> portability is in place; full Windows build is pending.
 
 ## Architecture
 
@@ -84,9 +84,18 @@ app <- dr_app() |>
   dr_get("/health", function(req) {
     dr_json(list(status = "ok"))
   }) |>
+  dr_get("/users/:id", function(req) {
+    # Path parameters: req$params is a named character vector.
+    # `:id`, `<id>` and `{id}` are accepted interchangeably.
+    dr_json(list(user_id = req$params[["id"]]))
+  }) |>
   dr_post("/predict", function(req) {
     body <- dr_body(req, as = "json")
     dr_json(list(prediction = model_predict(body$data)))
+  }) |>
+  dr_get("/login", function(req) dr_redirect("/auth/sso")) |>
+  dr_get("/report.csv", function(req) {
+    dr_file("/srv/reports/latest.csv", download_as = "Q3-report.csv")
   })
 
 # Single-process serve.
@@ -95,6 +104,18 @@ dr_serve(app, port = 8080L, threads = 4L)
 # When done:
 dr_stop()
 ```
+
+### Response helpers
+
+* `dr_text(body)` — `text/plain; charset=utf-8`
+* `dr_html(body)` — `text/html; charset=utf-8`
+* `dr_json(x)`   — `application/json`, with a fast C++ path for the
+  common shapes
+* `dr_redirect(location, status = 302L)` — sets `Location:` and an
+  empty body
+* `dr_file(path, download_as = NULL)` — reads a file, auto-detects
+  the MIME from a built-in table, optionally adds
+  `Content-Disposition: attachment`
 
 ### Multi-process workers
 

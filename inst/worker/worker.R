@@ -51,7 +51,8 @@ invisible({
   .Call(drogonR:::drogonR_clear_routes)
   for (r in cfg$app$routes) {
     reg <- if (has_mw) drogonR:::.dr_wrap_handler(r$handler, cfg$app) else r$handler
-    .Call(drogonR:::drogonR_register_route, r$method, r$path, reg)
+    .Call(drogonR:::drogonR_register_route, r$method, r$path, r$regex,
+          r$param_names, reg)
   }
   .Call(drogonR:::drogonR_server_start,
         as.integer(cfg$port), as.integer(cfg$threads),

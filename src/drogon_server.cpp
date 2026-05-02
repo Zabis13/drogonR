@@ -8,13 +8,12 @@
 #include <drogon/HttpAppFramework.h>
 
 #include "r_bridge.h"
+#include "socket_compat.h"
 
 #include <atomic>
-#include <fcntl.h>
 #include <mutex>
 #include <string>
 #include <thread>
-#include <unistd.h>
 #include <vector>
 
 namespace drogonR {
@@ -30,8 +29,10 @@ extern std::atomic<int> g_wakeReadFd_unused; // silence linker if unused
 // --- Route table ----------------------------------------------------------
 struct Route {
     std::string method;
-    std::string path;
-    SEXP        handler;   // R closure, kept alive via R_PreserveObject
+    std::string path;        // original user-facing path (for diagnostics)
+    std::string regex;       // path translated to a Drogon regex
+    std::vector<std::string> param_names;  // names matching regex captures
+    SEXP        handler;     // R closure, kept alive via R_PreserveObject
 };
 
 namespace {
@@ -61,8 +62,8 @@ static void installDrogonHandler(const Route &r, int route_id) {
     else if (r.method == "HEAD")    method = drogon::Head;
     else if (r.method == "OPTIONS") method = drogon::Options;
 
-    drogon::app().registerHandler(
-        r.path,
+    drogon::app().registerHandlerViaRegex(
+        r.regex,
         [route_id](const drogon::HttpRequestPtr &req,
                    std::function<void(const drogon::HttpResponsePtr &)> &&cb)
         {
@@ -76,6 +77,7 @@ static void installDrogonHandler(const Route &r, int route_id) {
             for (const auto &q : req->getParameters()) {
                 pr.queries.emplace_back(q.first, q.second);
             }
+            pr.path_params = req->getRoutingParameters();
             pr.respond  = std::move(cb);
             pr.route_id = route_id;
             if (!enqueueRequest(std::move(pr))) {
@@ -100,7 +102,8 @@ static void installDrogonHandler(const Route &r, int route_id) {
 
 extern "C" {
 
-SEXP drogonR_register_route(SEXP method_, SEXP path_, SEXP handler_) {
+SEXP drogonR_register_route(SEXP method_, SEXP path_, SEXP regex_,
+                            SEXP param_names_, SEXP handler_) {
     if (drogonR::g_running.load()) {
         Rf_error("dr_register_route: cannot register routes while the "
                  "server is running. Stop it first with dr_stop().");
@@ -109,12 +112,22 @@ SEXP drogonR_register_route(SEXP method_, SEXP path_, SEXP handler_) {
         Rf_error("method must be a single string");
     if (TYPEOF(path_)    != STRSXP || LENGTH(path_)    != 1)
         Rf_error("path must be a single string");
+    if (TYPEOF(regex_)   != STRSXP || LENGTH(regex_)   != 1)
+        Rf_error("regex must be a single string");
+    if (TYPEOF(param_names_) != STRSXP)
+        Rf_error("param_names must be a character vector");
     if (TYPEOF(handler_) != CLOSXP)
         Rf_error("handler must be a function");
 
     drogonR::Route r;
     r.method  = CHAR(STRING_ELT(method_, 0));
     r.path    = CHAR(STRING_ELT(path_, 0));
+    r.regex   = CHAR(STRING_ELT(regex_, 0));
+    int npn = LENGTH(param_names_);
+    r.param_names.reserve(npn);
+    for (int i = 0; i < npn; ++i) {
+        r.param_names.emplace_back(CHAR(STRING_ELT(param_names_, i)));
+    }
     r.handler = handler_;
     R_PreserveObject(r.handler);
 
@@ -186,12 +199,11 @@ SEXP drogonR_server_start(SEXP port_, SEXP threads_, SEXP upload_path_,
 
     const char *upload_path = CHAR(STRING_ELT(upload_path_, 0));
 
-    if (::pipe(drogonR::g_wakePipe) != 0) {
+    // Non-blocking on both ends so reads/writes never stall the I/O threads.
+    // On Windows this is a loopback TCP socketpair; on POSIX a plain pipe(2).
+    if (drogonR::makeWakePipe(drogonR::g_wakePipe) != 0) {
         Rf_error("failed to create wakeup pipe");
     }
-    // Non-blocking on both ends so reads/writes never stall the I/O threads.
-    ::fcntl(drogonR::g_wakePipe[0], F_SETFL, O_NONBLOCK);
-    ::fcntl(drogonR::g_wakePipe[1], F_SETFL, O_NONBLOCK);
 
     drogonR::initQueueWakeup(drogonR::g_wakePipe[0], drogonR::g_wakePipe[1]);
     drogonR::registerDispatcherFd(drogonR::g_wakePipe[0]);
@@ -252,8 +264,8 @@ SEXP drogonR_server_stop(void) {
     drogonR::resetQueueWakeup();
     drogonR::setQueueMaxSize(0);
 
-    if (drogonR::g_wakePipe[0] >= 0) ::close(drogonR::g_wakePipe[0]);
-    if (drogonR::g_wakePipe[1] >= 0) ::close(drogonR::g_wakePipe[1]);
+    drogonR::closeWakeFd(drogonR::g_wakePipe[0]);
+    drogonR::closeWakeFd(drogonR::g_wakePipe[1]);
     drogonR::g_wakePipe[0] = drogonR::g_wakePipe[1] = -1;
 
     return R_NilValue;

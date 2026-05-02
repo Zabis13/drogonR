@@ -31,10 +31,19 @@
 #include "r_bridge.h"
 
 #include <deque>
-#include <poll.h>
+#ifdef _WIN32
+  #ifndef _WIN32_WINNT
+    #define _WIN32_WINNT 0x0600
+  #endif
+  #include <winsock2.h>   // pollfd + WSAPoll on Windows
+  #define strcasecmp _stricmp
+#else
+  #include <poll.h>
+  #include <strings.h>
+#endif
 #include <string>
-#include <strings.h>
 #include <utility>
+#include <vector>
 
 namespace drogonR {
 
@@ -42,7 +51,8 @@ namespace drogonR {
 std::deque<PendingRequest> drainQueue();
 void                       drainWakePipe();
 const struct Route        *getRoute(int id);
-struct Route { std::string method; std::string path; SEXP handler; };
+struct Route { std::string method; std::string path; std::string regex;
+               std::vector<std::string> param_names; SEXP handler; };
 
 // Forward
 static void runDispatcher(int * /*event_flags*/, void *data);
@@ -190,15 +200,27 @@ SEXP buildRequestList(const PendingRequest &pr) {
     Rf_setAttrib(q, R_NamesSymbol, qnms);
     SET_VECTOR_ELT(out, 4, q);
 
-    // params — empty list (path parameters not yet implemented; kept
-    // present so user code reading req$params doesn't have to special-
-    // case NULL between fast-path and slow-path).
-    SET_VECTOR_ELT(out, 5, Rf_allocVector(VECSXP, 0));
+    // params — named character vector matching the route's path
+    // placeholders to their captured values, by position. Empty when
+    // the route has no parameters.
+    const Route *route = getRoute(pr.route_id);
+    int np = static_cast<int>(pr.path_params.size());
+    int nn = (route != nullptr)
+             ? static_cast<int>(route->param_names.size()) : 0;
+    int nparams = (np < nn) ? np : nn;
+    SEXP p    = PROTECT(Rf_allocVector(STRSXP, nparams));
+    SEXP pnms = PROTECT(Rf_allocVector(STRSXP, nparams));
+    for (int i = 0; i < nparams; ++i) {
+        SET_STRING_ELT(pnms, i, Rf_mkChar(route->param_names[i].c_str()));
+        SET_STRING_ELT(p,    i, Rf_mkChar(pr.path_params[i].c_str()));
+    }
+    Rf_setAttrib(p, R_NamesSymbol, pnms);
+    SET_VECTOR_ELT(out, 5, p);
 
     Rf_setAttrib(out, R_NamesSymbol, names);
     SEXP cls = PROTECT(Rf_mkString("drogon_request"));
     Rf_setAttrib(out, R_ClassSymbol, cls);
-    UNPROTECT(7);
+    UNPROTECT(9);
     return out;
 }
 

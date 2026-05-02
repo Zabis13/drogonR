@@ -1,3 +1,18 @@
+# drogonR 0.1.4
+
+* Path parameters in routes: `dr_get("/users/:id", ...)`. Three
+  placeholder syntaxes are accepted interchangeably — `:name`,
+  `<name>`, `{name}` — and exposed to handlers as a named character
+  vector in `req$params`.
+* Response helpers: `dr_text()`, `dr_html()`, `dr_redirect()`,
+  `dr_file()`. `dr_file()` auto-detects the MIME type from a built-in
+  table covering ~25 common extensions, supports `download_as = ...`
+  for `Content-Disposition: attachment`, and warns/errors on
+  oversized loads (>50MB / >500MB).
+* Windows source-portability: replaced the POSIX `pipe(2)` /
+  `fcntl(2)` wakeup mechanism with a loopback TCP `socketpair`
+  on Windows. (Full Windows binary build is still pending.)
+
 # drogonR 0.1.3
 
 * Fast-path handlers: bypass R-side tryCatch/middleware, registering

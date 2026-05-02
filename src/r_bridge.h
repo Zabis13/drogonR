@@ -23,6 +23,11 @@ struct PendingRequest {
     std::vector<std::pair<std::string, std::string>> headers;
     std::vector<std::pair<std::string, std::string>> queries;
 
+    // Positional path parameters captured by the route's regex, in
+    // matching order. The R-side wrapper joins them with the route's
+    // saved param_names to build a named character vector.
+    std::vector<std::string> path_params;
+
     // Drogon's response callback. Captured by move at push time. The
     // dispatcher invokes it once with the constructed HttpResponsePtr.
     // If the dispatcher fails (R error, missing handler), it must still
@@ -63,7 +68,8 @@ SEXP drogonR_server_running(void);
 SEXP drogonR_reset_fork_state(void);
 
 // Routing
-SEXP drogonR_register_route(SEXP method_, SEXP path_, SEXP handler_);
+SEXP drogonR_register_route(SEXP method_, SEXP path_, SEXP regex_,
+                            SEXP param_names_, SEXP handler_);
 SEXP drogonR_clear_routes(void);
 
 #ifdef __cplusplus

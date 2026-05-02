@@ -7,12 +7,11 @@
 // dispatcher drains the queue in one shot.
 
 #include "r_bridge.h"
+#include "socket_compat.h"
 
 #include <deque>
 #include <mutex>
-#include <unistd.h>
 #include <atomic>
-#include <cerrno>
 
 namespace drogonR {
 
@@ -61,12 +60,9 @@ bool enqueueRequest(PendingRequest &&req) {
 }
 
 void notifyDispatcher() {
-    int fd = g_wakeWriteFd.load();
-    if (fd < 0) return;
-    char b = 1;
     // Best-effort: if the pipe is full the dispatcher will see the
     // queue anyway on its next drain.
-    while (::write(fd, &b, 1) == -1 && errno == EINTR) { /* retry */ }
+    writeWakeByte(g_wakeWriteFd.load());
 }
 
 // Drains everything currently queued and returns it to the caller in
@@ -83,10 +79,7 @@ std::deque<PendingRequest> drainQueue() {
 
 // Drains and discards the wakeup byte(s). Called from the fd callback.
 void drainWakePipe() {
-    int fd = g_wakeReadFd.load();
-    if (fd < 0) return;
-    char buf[64];
-    while (::read(fd, buf, sizeof(buf)) > 0) { /* drain */ }
+    drainWakeBytes(g_wakeReadFd.load());
 }
 
 } // namespace drogonR

@@ -7,7 +7,9 @@ library(drogonR)
 heavy <- c(
   "server-lifecycle",
   "workers",
-  "backpressure"
+  "backpressure",
+  "path-params",
+  "response-helpers"
 )
 
 on_cran <- !identical(Sys.getenv("NOT_CRAN"), "true")

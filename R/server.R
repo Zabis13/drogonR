@@ -54,6 +54,55 @@ dr_app <- function() {
   paste0(toupper(method), " ", path)
 }
 
+# Translate a user-facing path pattern to a Drogon-side regex and the
+# ordered list of parameter names. Accepts three placeholder syntaxes
+# interchangeably:
+#   /users/:id         (express/Rails style)
+#   /users/<id>        (plumber style)
+#   /users/{id}        (Drogon native style)
+# A placeholder matches a single path segment ([^/]+). Regex metacharacters
+# in the surrounding literal text are escaped so paths like "/v1.0/x" work
+# unchanged. The resulting regex anchors the full path implicitly — Drogon
+# requires a complete match.
+.dr_compile_path <- function(path) {
+  # Tokenise: alternating literal chunks and placeholders.
+  re_placeholder <- "(:([A-Za-z_][A-Za-z0-9_]*))|<([A-Za-z_][A-Za-z0-9_]*)>|\\{([A-Za-z_][A-Za-z0-9_]*)\\}"
+  m <- gregexpr(re_placeholder, path, perl = TRUE)[[1]]
+  if (length(m) == 1L && m == -1L) {
+    # No placeholders: regex == escaped path, no params.
+    return(list(regex = .dr_escape_regex(path), param_names = character()))
+  }
+  starts <- as.integer(m)
+  lens   <- attr(m, "match.length")
+  out_parts  <- character()
+  param_nms  <- character()
+  pos <- 1L
+  for (i in seq_along(starts)) {
+    s <- starts[i]; e <- s + lens[i] - 1L
+    if (s > pos) {
+      out_parts <- c(out_parts, .dr_escape_regex(substr(path, pos, s - 1L)))
+    }
+    tok <- substr(path, s, e)
+    nm <- sub(re_placeholder, "\\2\\3\\4", tok, perl = TRUE)
+    param_nms  <- c(param_nms, nm)
+    out_parts  <- c(out_parts, "([^/]+)")
+    pos <- e + 1L
+  }
+  if (pos <= nchar(path)) {
+    out_parts <- c(out_parts, .dr_escape_regex(substr(path, pos, nchar(path))))
+  }
+  if (anyDuplicated(param_nms)) {
+    stop("duplicate path parameter names in '", path, "': ",
+         paste(param_nms[duplicated(param_nms)], collapse = ", "),
+         call. = FALSE)
+  }
+  list(regex = paste(out_parts, collapse = ""), param_names = param_nms)
+}
+
+.dr_escape_regex <- function(s) {
+  gsub("([.\\+*?\\[\\](){}^$|])", "\\\\\\1", s, perl = TRUE)
+}
+
 .dr_add_route <- function(app, method, path, handler) {
   .dr_check_app(app)
   if (!is.function(handler)) {
@@ -62,13 +111,16 @@ dr_app <- function() {
   if (!is.character(path) || length(path) != 1L || is.na(path)) {
     stop("`path` must be a single string", call. = FALSE)
   }
+  compiled <- .dr_compile_path(path)
   key <- .dr_route_key(method, path)
   if (!is.null(app$routes[[key]])) {
     warning("overwriting existing route ", key, call. = FALSE)
   }
-  app$routes[[key]] <- list(method = toupper(method),
-                            path    = path,
-                            handler = handler)
+  app$routes[[key]] <- list(method      = toupper(method),
+                            path        = path,
+                            regex       = compiled$regex,
+                            param_names = compiled$param_names,
+                            handler     = handler)
   invisible(app)
 }
 
@@ -255,7 +307,8 @@ dr_serve <- function(app, port = 8080L, threads = 1L,
     .Call(drogonR_clear_routes)
     for (r in app$routes) {
       reg <- if (has_mw) .dr_wrap_handler(r$handler, app) else r$handler
-      .Call(drogonR_register_route, r$method, r$path, reg)
+      .Call(drogonR_register_route, r$method, r$path, r$regex,
+            r$param_names, reg)
     }
     app$port <- port
     .Call(drogonR_server_start, port, threads, upload_path, max_queue)

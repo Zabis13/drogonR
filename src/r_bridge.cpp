@@ -36,7 +36,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"drogonR_server_stop",     (DL_FUNC) &drogonR_server_stop,     0},
     {"drogonR_server_running",  (DL_FUNC) &drogonR_server_running,  0},
     {"drogonR_reset_fork_state",(DL_FUNC) &drogonR_reset_fork_state,0},
-    {"drogonR_register_route",  (DL_FUNC) &drogonR_register_route,  3},
+    {"drogonR_register_route",  (DL_FUNC) &drogonR_register_route,  5},
     {"drogonR_clear_routes",    (DL_FUNC) &drogonR_clear_routes,    0},
     {"drogonR_to_json",         (DL_FUNC) &drogonR_to_json,         2},
     {NULL, NULL, 0}

@@ -1,3 +1,0 @@
-WARNING: Ignored open failure for pid 940935
-[ perf record: Woken up 157 times to write data ]
-[ perf record: Captured and wrote 40,524 MB /mnt/Data2/DS_projects/drogonR/tools/bench/results/profile-ping-text-20260501-085504.perf.data (110665 samples) ]

@@ -8,6 +8,14 @@ TODO.md
 .Ruserdata
 *.Rcheck/
 *.tar.gz
-src/*.o
-src/*.so
+src/**/*.o
+src/**/*.so
+src/**/*.so.*
+src/**/*.a
+src/**/*.dylib
+src/**/*.dll
 src/Makevars
+src/Makevars.win
+
+# bench artifacts
+tools/bench/results/

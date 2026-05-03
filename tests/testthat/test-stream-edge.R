@@ -145,6 +145,7 @@ test_that("two concurrent clients on the same route get independent state", {
   skip_on_os("windows")
   skip_if_not_installed("httr2")
   skip_if_not_installed("processx")
+  skip_if_not_installed("curl")
 
   port <- free_port()
   N    <- 6L

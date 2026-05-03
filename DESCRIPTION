@@ -36,6 +36,7 @@ LinkingTo:
 Suggests:
     testthat (>= 3.0.0),
     httr2,
+    curl,
     plumber,
     knitr,
     rmarkdown

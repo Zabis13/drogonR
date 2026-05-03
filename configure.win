@@ -125,6 +125,14 @@ fi
 WEPOLL_CPPFLAGS="-Idrogon/third_party/wepoll"
 WEPOLL_OBJECTS="drogon/third_party/wepoll/wepoll.o"
 
+# --- mman-win32 ---------------------------------------------------------
+# Drogon's CacheFile.cc does `#include <mman.h>` on _WIN32 and uses
+# mmap()/munmap(). MinGW / Rtools do not provide that header, so we
+# vendor the MIT-licensed mman-win32 shim under src/mman-win32/. See
+# src/mman-win32/LICENSE for attribution.
+MMAN_CPPFLAGS="-Imman-win32"
+MMAN_OBJECTS="mman-win32/mman.o"
+
 # wepoll provides epoll_*, so we use EpollPoller plus PollPoller as fallback.
 POLLER_OBJECTS="drogon/trantor/net/inner/poller/EpollPoller.o drogon/trantor/net/inner/poller/PollPoller.o"
 FILEBUF_OBJECTS="drogon/trantor/net/inner/FileBufferNodeWin.o"
@@ -147,6 +155,8 @@ sed \
   -e "s|@WEPOLL_CPPFLAGS@|$WEPOLL_CPPFLAGS|g" \
   -e "s|@WEPOLL_OBJECTS@|$WEPOLL_OBJECTS|g" \
   -e "s|@WINDOWS_OBJECTS@|$WINDOWS_OBJECTS|g" \
+  -e "s|@MMAN_CPPFLAGS@|$MMAN_CPPFLAGS|g" \
+  -e "s|@MMAN_OBJECTS@|$MMAN_OBJECTS|g" \
   src/Makevars.in > src/Makevars.win
 
 echo "Configuration complete."

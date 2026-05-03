@@ -1,0 +1,218 @@
+---
+title: "Variant 1 — C++ Shared Path (`dr_*_cpp`)"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Variant 1 — C++ Shared Path}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE, comment = "#>")
+```
+
+The `dr_*_cpp()` family registers a route whose handler is a **C
+function exported by another R package**. Drogon's worker threads call
+the handler directly — the request never reaches the R main thread, so
+nothing in the hot path acquires the R interpreter.
+
+This is the only variant where R is not in the loop. It's intended for
+inference packages whose work is already in C/C++ (ggmlR, llamaR,
+sd2R, embedding/classifier packages) and that want to serve HTTP
+without paying the R round-trip per request.
+
+For the request shape and overall picture see
+`vignette("drogonR", package = "drogonR")`.
+
+---
+
+## The handler ABI
+
+The header lives in drogonR's installed include directory:
+
+```
+$(R_HOME_DIR)/library/drogonR/include/drogonR.h
+```
+
+A package using it adds drogonR to `LinkingTo:` so R's build machinery
+puts that directory on the compiler's `-I` path:
+
+```
+Package: yourPackage
+Imports:   drogonR
+LinkingTo: drogonR
+```
+
+The signature every `dr_*_cpp()` handler must match:
+
+```c
+#include <drogonR.h>
+
+typedef int (*drogonr_unary_handler_t)(
+    const char         *body,           size_t  body_len,
+    const char         *query,
+    const char *const  *path_params,    size_t  path_params_n,
+    const char *const  *headers,        size_t  headers_n,
+    char              **out_body,       size_t *out_len,
+    int                *out_status,
+    char              **out_content_type);
+```
+
+* `body` / `body_len` — request body bytes; not NUL-terminated.
+* `query` — raw query string (everything after `?`), or `NULL`.
+* `path_params[i]` — captured route parameters in the order they
+  appear in the path pattern (`"/items/:id/sub/:slug"` gives
+  `path_params[0] = "<id>"`, `path_params[1] = "<slug>"`).
+* `headers[2*i]` / `headers[2*i+1]` — flat `(name, value)` pairs.
+  Drogon **lowercases header names**, so match against
+  `"x-trace"`, not `"X-Trace"`.
+
+drogonR owns every input pointer; they are valid for the duration of
+the call and must not be retained.
+
+The handler writes:
+
+* `*out_body` — `malloc()`'d response body (drogonR `free()`s it after
+  sending). `NULL` is allowed if `*out_len == 0`.
+* `*out_len` — number of bytes in `*out_body`.
+* `*out_status` — HTTP status code.
+* `*out_content_type` — optional `malloc()`'d MIME string. If left at
+  the initial `NULL`, drogonR sends `application/octet-stream`.
+
+Return value: `0` on success, non-zero to signal failure (drogonR
+sends a generic 500 and `free()`s `*out_body` / `*out_content_type` if
+the handler allocated them before bailing out).
+
+---
+
+## A complete example
+
+This is the test backend drogonR uses internally
+(`inst/test-backend/drogonRtestbackend/src/backend.c`), trimmed to the
+two routes the bench uses.
+
+```c
+#include <drogonR.h>
+#include <R.h>
+#include <R_ext/Rdynload.h>
+#include <stdlib.h>
+#include <string.h>
+
+static char *dupbytes(const char *data, size_t n) {
+    char *out = (char*) malloc(n > 0 ? n : 1);
+    if (out && data && n > 0) memcpy(out, data, n);
+    return out;
+}
+static char *dupcstr(const char *s) {
+    size_t n = strlen(s);
+    char *out = (char*) malloc(n + 1);
+    if (out) memcpy(out, s, n + 1);
+    return out;
+}
+
+/* /ping — fixed JSON {"ok":true} */
+static int h_ping_json(const char *body, size_t body_len,
+                       const char *query,
+                       const char *const *path, size_t path_n,
+                       const char *const *hdrs, size_t hdrs_n,
+                       char **out_body, size_t *out_len,
+                       int  *out_status, char **out_content_type) {
+    static const char k[] = "{\"ok\":true}";
+    *out_body         = dupbytes(k, sizeof(k) - 1);
+    *out_len          = sizeof(k) - 1;
+    *out_status       = 200;
+    *out_content_type = dupcstr("application/json");
+    return 0;
+}
+
+/* /echo — echo the body back as text/plain */
+static int h_echo(const char *body, size_t body_len,
+                  const char *query,
+                  const char *const *path, size_t path_n,
+                  const char *const *hdrs, size_t hdrs_n,
+                  char **out_body, size_t *out_len,
+                  int  *out_status, char **out_content_type) {
+    *out_body         = dupbytes(body, body_len);
+    *out_len          = body_len;
+    *out_status       = 200;
+    *out_content_type = dupcstr("text/plain; charset=utf-8");
+    return 0;
+}
+
+void R_init_yourPackage(DllInfo *dll) {
+    R_RegisterCCallable("yourPackage", "ping", (DL_FUNC) h_ping_json);
+    R_RegisterCCallable("yourPackage", "echo", (DL_FUNC) h_echo);
+    R_useDynamicSymbols(dll, FALSE);
+}
+```
+
+R-side wiring — note that registration is **eager**: drogonR resolves
+the symbol via `R_GetCCallable()` at `dr_*_cpp()` time, so a typo
+surfaces immediately, not on the first request.
+
+```r
+library(drogonR)
+
+app <- dr_app() |>
+  dr_get_cpp ("/ping",  package = "yourPackage", callable = "ping") |>
+  dr_post_cpp("/echo",  package = "yourPackage", callable = "echo")
+
+dr_serve(app, port = 8080L, threads = 4L)
+```
+
+The four registration helpers are `dr_get_cpp`, `dr_post_cpp`,
+`dr_put_cpp`, `dr_delete_cpp`. All four take `(app, path, package,
+callable)`.
+
+---
+
+## Threading rule (critical)
+
+Native handlers run on **Drogon's worker thread pool**, not on the R
+main thread. They MUST NOT:
+
+* call any function from `<Rinternals.h>` (`Rf_*`, `PROTECT`,
+  `R_alloc`, …)
+* allocate or read any `SEXP`
+* call back into the R interpreter (no `Rf_eval`, no
+  `R_tryCatch`, …)
+
+R is single-threaded; doing any of the above from a worker thread is
+undefined behaviour, typically a crash you'll see only under load.
+
+Configuration that requires R (loading models, reading args, building
+caches) belongs on the R side, before `dr_serve()` is called. Pass the
+result to your C handlers through whatever your package already uses
+internally — globals, an opaque pointer in `R_ExternalPtrAddr()`, etc.
+
+---
+
+## Memory ownership cheat-sheet
+
+| Pointer                | Allocated by | Freed by | Lifetime               |
+|------------------------|--------------|----------|------------------------|
+| `body`, `query`        | drogonR      | drogonR  | duration of the call   |
+| `path_params[i]`       | drogonR      | drogonR  | duration of the call   |
+| `headers[i]`           | drogonR      | drogonR  | duration of the call   |
+| `*out_body`            | handler (`malloc`) | drogonR | until response sent |
+| `*out_content_type`    | handler (`malloc`) | drogonR | until response sent |
+
+If the handler returns non-zero, drogonR still `free()`s any allocated
+out-pointers — so it is safe to allocate them before discovering the
+failure path, no leak.
+
+---
+
+## Where this fits
+
+* Pair `dr_*_cpp()` with `dr_get()` / `dr_post()` on the same app.
+  The slow / configuration / admin endpoints can stay in R, the hot
+  inference endpoint goes through C.
+* The bench shows ~240 k rps for a trivial cpp-shared handler vs ~116 k
+  rps for the same response shape from an R handler. Real handlers
+  with non-trivial work move the numbers, but the *bridge cost* is
+  what differs.
+
+For the plumber drop-in, see
+`vignette("mode-plumber-shim", package = "drogonR")`. For R-side
+handlers, see `vignette("mode-native", package = "drogonR")`.

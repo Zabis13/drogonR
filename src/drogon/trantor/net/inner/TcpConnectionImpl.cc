@@ -292,6 +292,14 @@ void TcpConnectionImpl::handleClose()
         LOG_TRACE << "to call close callback";
         closeCallback_(guardThis);
     }
+    // drogonR patch: notify the application-layer close callback (set via
+    // setUserCloseCallback). Used by drogonR's stream sessions to detect
+    // that the client went away while a chunked response was still
+    // pumping. Same thread (drogon I/O loop), same guardThis lifetime.
+    if (userCloseCallback_)
+    {
+        userCloseCallback_(guardThis);
+    }
 }
 void TcpConnectionImpl::handleError()
 {

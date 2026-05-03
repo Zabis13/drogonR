@@ -1,0 +1,152 @@
+---
+title: "Variant 3 — Plumber Drop-In (`drogonR::pr_run`)"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Variant 3 — Plumber Drop-In}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE, comment = "#>")
+```
+
+If you already have a plumber service, the shim lets you run it under
+drogonR by changing one line. The shim parses the plumber router into
+drogonR routes and dispatches them through `dr_serve()`. Existing
+handlers, paths, and parameter types keep working.
+
+For the overall picture see
+`vignette("drogonR", package = "drogonR")`.
+
+---
+
+## The one-line swap
+
+Existing plumber code:
+
+```r
+library(plumber)
+pr <- pr() |>
+  pr_get ("/users/<id:int>", function(id) list(id = id, ok = TRUE)) |>
+  pr_post("/users",          function(req) {
+    body <- jsonlite::fromJSON(req$postBody)
+    list(created = body$name)
+  })
+
+plumber::pr_run(pr, port = 8080L, docs = FALSE)   # <-- before
+```
+
+Becomes:
+
+```r
+drogonR::pr_run(pr, port = 8080L, docs = FALSE)   # <-- after
+```
+
+That's the whole change. `docs`, `swagger`, `swaggerCallback`,
+`quiet` are silently accepted and ignored (the shim has no swagger
+surface, so the flags are inapplicable but valid). Other arguments —
+`threads`, `workers`, `max_queue` — forward to `dr_serve()`.
+
+---
+
+## What the shim supports
+
+* `@get`, `@post`, `@put`, `@delete` annotations and the
+  `pr_get/post/put/delete()` helpers.
+* Path placeholders `<name>` and `<name:type>`. Recognised types are
+  `int` / `integer`, `dbl` / `double` / `numeric`, `bool` / `logical`;
+  anything else passes through as character. Coercion runs only on
+  path parameters — query and body values keep plumber's untyped
+  shape (string for query, parsed-JSON for body).
+* Handler argument resolution by name: `path > query > JSON body`,
+  with `req` injected if the handler declares a `req` parameter.
+* Plumber 1.x default serialisation:
+  `jsonlite::toJSON(auto_unbox = FALSE)` for every return value. Bare
+  strings become JSON arrays (`["hello"]`), exactly as plumber sends
+  them — byte-level parity with `plumber::pr_run()`. If you've already
+  built a JSON string with `jsonlite::toJSON()`, it's emitted
+  verbatim.
+* Returning a `dr_response()` / `dr_json()` / `dr_text()` from a
+  handler opts out of the default serializer and is forwarded as-is —
+  useful for incrementally migrating hot endpoints to drogonR's
+  response shape without leaving the shim.
+
+---
+
+## What the shim rejects
+
+Each of these triggers an explicit error at `pr_run()` time, before
+any route is registered, so failure is loud:
+
+* **`@filter` / `pr_filter()`** — user-defined filters. Rewrite as
+  middleware via `dr_use()` (see `vignette("mode-native")`).
+* **`pr_hook()` / `@hook`** — preroute / postroute / postserialize
+  hooks. Same migration path as filters.
+* **`pr_mount()` / sub-routers** — composing one router from several.
+  Flatten into a single `pr()` (or move to native `dr_app()`).
+* **Custom parsers / serialisers** — every response goes through the
+  default plumber JSON serializer. Build the response yourself with
+  `dr_response(headers = list("Content-Type" = "..."))` if you need
+  another format.
+* **`PlumberResponse` / `PlumberFile` return values** — return a
+  list / data.frame for JSON, a string for text, or a
+  `dr_response()` for full control.
+* **The `res` parameter in handlers** — plumber-style mutation of a
+  passed-in `res` object isn't supported. The shim warns once per
+  affected route at `pr_run()` time. Set status / headers via the
+  return value (`dr_response(...)`).
+* **Async handlers, websockets, OpenAPI / swagger assets** — out of
+  scope for the shim.
+
+---
+
+## A minimal end-to-end example
+
+```r
+library(plumber)
+library(drogonR)
+
+pr <- pr() |>
+  pr_get ("/health",                function() list(ok = TRUE)) |>
+  pr_get ("/users/<id:int>",        function(id) {
+    list(id = id, type = typeof(id))     # id arrives as integer
+  }) |>
+  pr_post("/echo",                  function(req) {
+    list(received = jsonlite::fromJSON(req$postBody))
+  })
+
+drogonR::pr_run(pr, port = 8080L, docs = FALSE)
+```
+
+Three responses your client will see:
+
+```
+GET /health         -> {"ok":[true]}
+GET /users/42       -> {"id":[42],"type":["integer"]}
+POST /echo {"a":1}  -> {"received":{"a":[1]}}
+```
+
+The bracketed scalars are plumber's default serialiser (`auto_unbox =
+FALSE`) — preserved on purpose so existing clients don't break. To get
+unboxed JSON, return `dr_json(x, auto_unbox = TRUE)` from the handler;
+that bypasses the default serializer.
+
+---
+
+## When to migrate to native
+
+The shim is fine for steady-state plumber apps. Reach for the native
+API (`vignette("mode-native")`) if you want:
+
+* per-request middleware (auth, logging, CORS, rate limiting),
+* explicit control over status / headers / content-type without
+  per-handler `dr_response()` calls,
+* response helpers (`dr_text`, `dr_html`, `dr_redirect`, `dr_file`),
+* the full request shape (`req$params`, `dr_query()`, `dr_body()`),
+* path placeholders with `:id` / `<id>` / `{id}` syntax (the shim
+  rewrites plumber's `<id:type>` form internally).
+
+If your hot endpoint is C/C++-bound (model inference, embeddings),
+register that endpoint with `dr_get_cpp()` and leave the rest under
+the shim — see `vignette("mode-cpp-shared", package = "drogonR")`.

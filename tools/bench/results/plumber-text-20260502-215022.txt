@@ -1,0 +1,10 @@
+# plumber text  2026-05-02T21:53:54+03:00
+# wrk -t4 -c50 -d30s http://127.0.0.1:8081/ping-text
+Running 30s test @ http://127.0.0.1:8081/ping-text
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    44.85ms    5.16ms  95.99ms   91.74%
+    Req/Sec   268.46     38.17   363.00     78.33%
+  32089 requests in 30.01s, 3.46MB read
+Requests/sec:   1069.21
+Transfer/sec:    118.15KB

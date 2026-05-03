@@ -64,7 +64,7 @@ test_that("workers > 1 binds N listeners on the same port (SO_REUSEPORT)", {
   port <- free_port()
   app <- dr_app() |>
     dr_get("/ok", function(req) "ok")
-  dr_serve(app, port = port, threads = 1L, workers = 3L)
+  suppressMessages(dr_serve(app, port = port, threads = 1L, workers = 3L))
   on.exit(dr_stop(), add = TRUE)
 
   wait_ready(port, "/ok")
@@ -83,10 +83,10 @@ test_that("on_worker_start runs once per worker before serving", {
 
   app <- dr_app() |>
     dr_get("/ok", function(req) "ok")
-  dr_serve(app, port = port, threads = 1L, workers = 2L,
+  suppressMessages(dr_serve(app, port = port, threads = 1L, workers = 2L,
            on_worker_start = function() {
              file.create(file.path(marker_dir, paste0(Sys.getpid())))
-           })
+           }))
   on.exit(dr_stop(), add = TRUE)
 
   wait_ready(port, "/ok")
@@ -104,15 +104,16 @@ test_that("on_worker_start failure: child exits, supervisor sees dead pids", {
   port <- free_port()
   app <- dr_app() |>
     dr_get("/x", function(req) "x")
-  dr_serve(app, port = port, threads = 1L, workers = 2L,
-           on_worker_start = function() stop("nope"))
+  suppressMessages(dr_serve(app, port = port, threads = 1L, workers = 2L,
+           on_worker_start = function() stop("nope")))
   on.exit(dr_stop(), add = TRUE)
 
   # Children should die almost immediately. Give them a moment, then
   # check via dr_status() — both must be dead, and nothing must be
-  # listening on the port.
+  # listening on the port. dr_status() emits a `worker pid=... has
+  # exited` message() per dead child — expected here, suppress.
   Sys.sleep(2)
-  s <- dr_status()
+  s <- suppressMessages(dr_status())
   expect_equal(nrow(s), 2L)
   expect_true(all(!s$alive))
 })
@@ -125,7 +126,7 @@ test_that("dr_status reports live workers", {
   port <- free_port()
   app <- dr_app() |>
     dr_get("/ok", function(req) "ok")
-  dr_serve(app, port = port, threads = 1L, workers = 2L)
+  suppressMessages(dr_serve(app, port = port, threads = 1L, workers = 2L))
   on.exit(dr_stop(), add = TRUE)
   wait_ready(port, "/ok")
 
@@ -144,7 +145,7 @@ test_that("dr_stop reaps workers and clears state", {
   port <- free_port()
   app <- dr_app() |>
     dr_get("/ok", function(req) "ok")
-  dr_serve(app, port = port, threads = 1L, workers = 2L)
+  suppressMessages(dr_serve(app, port = port, threads = 1L, workers = 2L))
   wait_ready(port, "/ok")
 
   pids_before <- dr_status()$pid

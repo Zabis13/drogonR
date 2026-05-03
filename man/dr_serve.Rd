@@ -11,6 +11,7 @@ dr_serve(
   workers = 1L,
   on_worker_start = NULL,
   max_queue = 1024L,
+  cpp_workers = 4L,
   upload_path = file.path(tempdir(), "drogonR-uploads")
 )
 }
@@ -37,6 +38,14 @@ handler before incoming requests are rejected with HTTP 503
 slower than the arrival rate, preventing unbounded memory growth.
 503 responses are sent directly from a Drogon I/O thread without
 touching R, so overload has no R-side cost. Default `1024L`.}
+
+\item{cpp_workers}{Size of the worker thread pool that runs native
+(R-bypass) handlers registered via `dr_*_cpp()` and
+`dr_*_cpp_stream()`. Each in-flight cpp request occupies one
+thread; streaming handlers hold their thread for the full
+duration of the response. Default `4L`. Increase if you have many
+concurrent long-running cpp-stream sessions (e.g. LLM token
+streams). Has no effect on R-side handlers.}
 
 \item{upload_path}{Directory where Drogon stores uploaded files. By
 default, a fresh subdirectory inside [tempdir()] is created so the

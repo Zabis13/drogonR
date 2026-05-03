@@ -27,6 +27,7 @@ Other contributors:
   \item Christopher Dunn (Maintainer of JsonCpp) [contributor]
   \item  JsonCpp Contributors (See src/drogon/third_party/jsoncpp/AUTHORS in the package source) [contributor, copyright holder]
   \item Bert Belder (Author of the bundled wepoll library (Windows epoll shim)) [contributor, copyright holder]
+  \item  mman-win32 contributors (Authors of the bundled mman-win32 library; see src/mman-win32/LICENSE) [contributor, copyright holder]
 }
 
 }

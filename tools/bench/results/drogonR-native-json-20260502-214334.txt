@@ -1,0 +1,10 @@
+# drogonR-native json  2026-05-02T21:44:37+03:00
+# wrk -t4 -c50 -d30s http://127.0.0.1:8080/ping
+Running 30s test @ http://127.0.0.1:8080/ping
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   437.86us  833.52us  25.26ms   99.25%
+    Req/Sec    30.85k     2.90k   36.86k    65.53%
+  3695035 requests in 30.10s, 500.39MB read
+Requests/sec: 122758.18
+Transfer/sec:     16.62MB

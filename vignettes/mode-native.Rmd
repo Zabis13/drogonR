@@ -1,0 +1,216 @@
+---
+title: "Variant 2 — drogonR Native API (`dr_app` / `dr_get` / …)"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Variant 2 — drogonR Native API}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE, comment = "#>")
+```
+
+The native API is what you use when you're writing a new HTTP service
+in R and want full control over routes, request parsing, response
+shape, and middleware. Each request runs an R closure on the main R
+thread; the I/O loop, parsing, and connection management stay in
+C++.
+
+For the overall picture see
+`vignette("drogonR", package = "drogonR")`.
+
+---
+
+## Building an app
+
+`dr_app()` returns a fresh `drogon_app` (a mutable environment).
+Routes are added with `dr_get()` / `dr_post()` / `dr_put()` /
+`dr_delete()`; each takes the app, a path pattern, and a handler. The
+helpers return the app, so they pipe.
+
+```r
+library(drogonR)
+
+app <- dr_app() |>
+  dr_get   ("/health",                function(req) "ok") |>
+  dr_get   ("/users/:id",             function(req) {
+    dr_json(list(id = req$params[["id"]]))
+  }) |>
+  dr_post  ("/users",                 function(req) {
+    body <- dr_body(req, as = "json")
+    dr_json(list(created = body$name), status = 201L)
+  }) |>
+  dr_delete("/users/:id",             function(req) {
+    dr_response(status = 204L)
+  })
+```
+
+Path placeholders accept three syntaxes — `:id`, `<id>`, `{id}` — all
+interchangeable. Captured values arrive in `req$params` keyed by name.
+Duplicate `(method, path)` registrations warn and overwrite the
+previous handler.
+
+---
+
+## The `req` object
+
+A handler is called with one argument: a `drogon_request`. It exposes
+fields directly and via small accessor helpers.
+
+| Field         | Type            | Notes                                         |
+|---------------|-----------------|-----------------------------------------------|
+| `req$method`  | character(1)    | `"GET"` / `"POST"` / …                        |
+| `req$path`    | character(1)    | URL path with no query string                 |
+| `req$body`    | character(1)    | raw body as text (UTF-8); use `dr_body()` to decode |
+| `req$headers` | named character | Drogon **lowercases** names                   |
+| `req$query`   | named character | URL-decoded                                   |
+| `req$params`  | named list      | path placeholder captures                     |
+
+Helpers:
+
+* `dr_header(req, "Content-Type")` — case-insensitive header lookup
+  (returns `NULL` if absent).
+* `dr_query(req)` — full named character vector; or `dr_query(req,
+  "page")` to pull one value (`NULL` if absent).
+* `dr_body(req, as = "text" | "json" | "raw")` — `"json"` parses with
+  `jsonlite::fromJSON()`; `"raw"` returns a raw vector.
+
+---
+
+## Building responses
+
+A handler may return:
+
+* a **bare string** — sent as `text/plain; charset=utf-8`, status 200;
+* a **`dr_response()` list** — full control over status, body, headers;
+* one of the response helpers — convenience wrappers around
+  `dr_response()`.
+
+```r
+# Plain text — the bare-string shorthand.
+function(req) "pong"
+
+# JSON. auto_unbox = TRUE turns length-1 R vectors into JSON scalars
+# (so list(ok = TRUE) emits {"ok":true}, not {"ok":[true]}).
+function(req) dr_json(list(ok = TRUE))
+
+# Explicit status / headers.
+function(req) dr_response(
+  body    = '{"reason":"gone"}',
+  status  = 410L,
+  headers = list("Content-Type" = "application/json"))
+
+# Other helpers:
+#   dr_text(...)      — status / custom text headers
+#   dr_html(...)      — text/html
+#   dr_redirect(loc)  — 302 with a Location header
+#   dr_file(path)     — stream a file with auto content-type
+```
+
+Throwing an R error from a handler is allowed: the bridge catches it
+and returns a 500 with a generic body. To customise that body — log
+the error, render a JSON error envelope, etc. — register an error
+handler:
+
+```r
+app <- dr_app() |>
+  dr_on_error(function(req, err) {
+    dr_json(list(error = conditionMessage(err),
+                 path  = req$path),
+            status = 500L)
+  }) |>
+  dr_get("/risky", function(req) stop("nope"))
+```
+
+---
+
+## Middleware
+
+`dr_use(app, mw)` appends a middleware to a chain that runs in
+registration order before the matched route handler. Each middleware
+takes `(req, nxt)`: call `nxt()` to delegate downstream (its return
+value is the response from the next link), or return your own response
+to short-circuit.
+
+```r
+log_requests <- function(req, nxt) {
+  t0  <- Sys.time()
+  res <- nxt()
+  message(sprintf("%s %s -> %s in %s",
+                  req$method, req$path, res$status,
+                  format(Sys.time() - t0)))
+  res
+}
+
+require_auth <- function(req, nxt) {
+  if (!identical(dr_header(req, "X-Token"), Sys.getenv("APP_TOKEN"))) {
+    return(dr_response(status = 401L, body = "unauthorized"))
+  }
+  nxt()
+}
+
+app <- dr_app() |>
+  dr_use(log_requests) |>
+  dr_use(require_auth) |>
+  dr_get("/secret", function(req) "shh")
+```
+
+`nxt()`'s return is always normalised to a list with `status`, `body`,
+`headers`, so middleware can mutate it (e.g. `res$headers[["X-Tag"]]
+<- "y"; res`) without checking shape.
+
+---
+
+## Static files
+
+`dr_static(app, mount, dir)` mounts a directory. Files under it are
+streamed by Drogon directly from a C++ I/O thread — R is never
+invoked, `Range` requests work, content-types are auto-detected, and
+path traversal (`..`, absolute paths) is rejected with 403.
+
+```r
+app <- dr_app() |>
+  dr_static("/assets", "./public") |>
+  dr_get   ("/api/ping", function(req) "pong")
+```
+
+---
+
+## Starting and stopping the server
+
+```r
+dr_serve(app,
+         port    = 8080L,
+         threads = 4L,        # I/O worker threads inside Drogon
+         workers = 1L)        # forked R worker processes; 1 = in-process
+
+# Drive later's loop on the main thread so handlers actually fire.
+repeat later::run_now(timeoutSecs = 3600)
+```
+
+`dr_serve()` returns immediately after Drogon's I/O threads start. The
+`later::run_now()` loop is what dispatches queued requests onto the
+main R thread; without it, requests pile up and never run. To stop
+from another R session: `dr_stop()`.
+
+A few rules:
+
+* **One server per R session.** `dr_serve()` after `dr_stop()` errors;
+  Drogon's event loop can't be restarted in the same process.
+* **`workers > 1`** spawns forked R worker processes that share the
+  listening socket via `SO_REUSEPORT`. The supervising R session
+  becomes a watchdog; you still poll `later::run_now()` on workers.
+* **`dr_status()` / `dr_running()`** report current state.
+
+---
+
+## When to reach for the other variants
+
+* If your work is already in C/C++ and you can write a handler
+  matching `drogonR.h`, register it with `dr_get_cpp()` and skip the
+  R-thread hop — see
+  `vignette("mode-cpp-shared", package = "drogonR")`.
+* If you have an existing plumber app and just want it faster, swap
+  one line — see
+  `vignette("mode-plumber-shim", package = "drogonR")`.

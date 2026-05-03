@@ -1,0 +1,155 @@
+---
+title: "drogonR — Three Ways to Serve HTTP from R"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{drogonR — Three Ways to Serve HTTP from R}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE, comment = "#>")
+```
+
+drogonR wraps the [Drogon](https://github.com/drogonframework/drogon) C++
+HTTP framework and exposes it to R. The same server can be driven through
+three different APIs depending on how much R you want in the request hot
+path:
+
+1. **`dr_*_cpp()` — C++ shared path.** Handlers are pure C functions in
+   another R package, resolved via `R_GetCCallable()` and called on
+   Drogon's worker threads. R is **not** in the hot path. Intended for
+   inference packages (ggmlR, llamaR, sd2R) that already do their work
+   in C++.
+2. **`dr_app()` + `dr_get()` / `dr_post()` / … — drogonR native.**
+   Handlers are R functions; the bridge marshals each request onto the
+   main R thread, runs the closure, and ships the response back. Full
+   control over routes, middleware, response shape. Recommended for new
+   APIs written in R.
+3. **`drogonR::pr_run()` — plumber drop-in.** Existing
+   `plumber::pr_run(pr)` becomes `drogonR::pr_run(pr)` with no other
+   changes. The shim translates the plumber router into drogonR routes
+   and serves them via `dr_serve()`. Recommended when you have a
+   plumber codebase and want a faster runtime without rewriting it.
+
+The variants share the same Drogon server underneath; only the
+registration path differs.
+
+---
+
+## Choosing a variant
+
+|                          | cpp-shared (`dr_*_cpp`) | native (`dr_get`)        | plumber shim (`pr_run`)  | plumber (baseline) |
+|--------------------------|-------------------------|--------------------------|--------------------------|--------------------|
+| Handler language         | C / C++                 | R                        | R (plumber convention)   | R                  |
+| Calls into R per request | 0                       | 1                        | 1                        | 1                  |
+| Code change vs plumber   | rewrite handlers in C   | rewrite using `dr_app()` | one line (`pr_run`)      | —                  |
+| Best for                 | inference / hot loops   | new R-side APIs          | existing plumber apps    | dev / one-offs     |
+
+The cpp-shared variant is the only one that bypasses R entirely on the
+request path. The native and shim variants both run an R closure per
+request — the difference between them is the calling convention
+(drogonR-native gets a `req` object; the shim emulates plumber's
+positional / named-arg matching).
+
+---
+
+## Performance snapshot
+
+`wrk -t4 -c50 -d30s` against four servers running the same two routes
+on `localhost`. Workload is intentionally trivial — `/ping` returns a
+fixed `{"ok":true}`, `/ping-text` returns `"ok"` — so the numbers
+measure the framework overhead, not the handler cost. See
+`tools/bench/run.sh` for the harness.
+
+| Variant                  | `/ping` (JSON)        | `/ping-text` (plain)  |
+|--------------------------|-----------------------|-----------------------|
+| **drogonR cpp-shared**   | **239 428 rps**, 200 µs | **234 753 rps**, 202 µs |
+| **drogonR native**       | 116 159 rps,  822 µs  | 218 163 rps,  252 µs  |
+| **drogonR plumber-shim** |  94 400 rps,  591 µs  |  99 276 rps,  583 µs  |
+| plumber (baseline)       |   1 078 rps, 44.5 ms  |   1 069 rps, 44.9 ms  |
+
+(rps = requests per second, single-host loopback; latency is the wrk
+average.) Two things to read out of this:
+
+* The cpp-shared path leaves R entirely — its throughput is bounded by
+  Drogon and the kernel, not by anything in this package.
+* Even when an R handler runs per request, the native path is ~100×
+  plumber on JSON and ~200× on plain text, because requests are
+  marshaled onto the main R thread once per dispatch loop instead of
+  per request, and the response is written from C++ without going back
+  through plumber's R-level filter chain.
+
+The shim is slower than native for the same workload — it pays the
+cost of plumber's argument-matching convention (path / query / body
+lookup, default-serialiser dispatch) on every call. It's still well
+above plumber itself because the I/O loop is C++.
+
+---
+
+## A minimal example of each
+
+**Variant 1 — cpp-shared** (in your inference package):
+
+```c
+// In yourPackage/src/handlers.c
+#include <drogonR.h>
+#include <R_ext/Rdynload.h>
+
+static int h_predict(const char *body, size_t body_len,
+                     const char *query,
+                     const char *const *path, size_t path_n,
+                     const char *const *hdrs, size_t hdrs_n,
+                     char **out_body, size_t *out_len,
+                     int  *out_status, char **out_content_type) {
+    /* run inference, fill out_body via malloc(), set status, ctype */
+    return 0;
+}
+
+void R_init_yourPackage(DllInfo *dll) {
+    R_RegisterCCallable("yourPackage", "predict", (DL_FUNC) h_predict);
+}
+```
+
+```r
+# In your serving script
+library(drogonR)
+app <- dr_app() |>
+  dr_post_cpp("/predict", "yourPackage", "predict")
+dr_serve(app, port = 8080L)
+```
+
+**Variant 2 — drogonR native:**
+
+```r
+library(drogonR)
+app <- dr_app() |>
+  dr_get("/users/:id", function(req) {
+    dr_json(list(id = req$params[["id"]], ok = TRUE))
+  })
+dr_serve(app, port = 8080L)
+```
+
+**Variant 3 — plumber shim:**
+
+```r
+# Existing plumber.R, unchanged:
+library(plumber)
+pr <- pr() |>
+  pr_get("/users/<id>", function(id) list(id = id, ok = TRUE))
+
+# Only this line changes — drogonR::, not plumber::
+drogonR::pr_run(pr, port = 8080L)
+```
+
+---
+
+## Where to go next
+
+* `vignette("mode-cpp-shared",   package = "drogonR")` — full ABI for
+  variant 1, including memory ownership and the threading rule.
+* `vignette("mode-native",       package = "drogonR")` — `req`/`res`
+  shape, response helpers, middleware, lifecycle of `dr_serve()`.
+* `vignette("mode-plumber-shim", package = "drogonR")` — exact subset
+  of plumber the shim implements, what triggers an explicit error,
+  what's silently accepted-and-ignored.

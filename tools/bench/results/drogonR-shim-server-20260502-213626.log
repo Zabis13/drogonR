@@ -1,0 +1,4 @@
+Ошибка в dr_serve(app, port = as.integer(port), ...) :
+  неиспользованный аргумент (docs = FALSE)
+Вызовы: <Anonymous>
+Выполнение остановлено

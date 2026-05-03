@@ -12,6 +12,8 @@ LATER_CPPFLAGS          = @LATER_CPPFLAGS@
 WEPOLL_CPPFLAGS         = @WEPOLL_CPPFLAGS@
 WEPOLL_OBJECTS          = @WEPOLL_OBJECTS@
 WINDOWS_OBJECTS         = @WINDOWS_OBJECTS@
+MMAN_CPPFLAGS           = @MMAN_CPPFLAGS@
+MMAN_OBJECTS            = @MMAN_OBJECTS@
 
 # --- Include paths -------------------------------------------------------
 DROGON_CPPFLAGS = \
@@ -35,7 +37,7 @@ DROGON_DEFINES = \
   -DJSON_USE_EXCEPTION=1 \
   -DJSONCPP_NO_LOCALE_SUPPORT
 
-PKG_CPPFLAGS = $(DROGON_CPPFLAGS) $(DROGON_DEFINES) $(TLS_CPPFLAGS) $(LATER_CPPFLAGS) $(WEPOLL_CPPFLAGS)
+PKG_CPPFLAGS = $(DROGON_CPPFLAGS) $(DROGON_DEFINES) $(TLS_CPPFLAGS) $(LATER_CPPFLAGS) $(WEPOLL_CPPFLAGS) $(MMAN_CPPFLAGS)
 PKG_CXXFLAGS =
 PKG_LIBS = $(TLS_LIBS) $(PLATFORM_LIBS) -lz
 
@@ -147,6 +149,7 @@ BRIDGE_OBJECTS = \
   drogon_server.o \
   request_queue.o \
   r_dispatcher.o \
+  stream_session.o \
   json_writer.o
 
 # --- All objects ---------------------------------------------------------
@@ -162,4 +165,5 @@ OBJECTS = \
   $(FILEBUF_OBJECTS) \
   $(TLS_OBJECTS) \
   $(WEPOLL_OBJECTS) \
-  $(WINDOWS_OBJECTS)
+  $(WINDOWS_OBJECTS) \
+  $(MMAN_OBJECTS)

@@ -1,3 +1,24 @@
+# drogonR 0.1.6
+
+* `dr_rate_limit(app, capacity, window, type, scope, routes)` —
+  per-route or shared rate limit (sliding / fixed window or token
+  bucket); over-budget requests get HTTP 429 + `Retry-After` from the
+  I/O thread before R is involved.
+* New vignette `rate-limiting.Rmd`.
+
+# drogonR 0.1.5
+
+* Streaming responses: `dr_stream(next_chunk, state, ...)` returns
+  HTTP chunked responses driven by an R generator pumped on the main
+  R thread, with a `cancelled = TRUE` cleanup contract on client
+  disconnect.
+* `dr_stream_sse(generator, ...)` convenience wrapper that formats
+  Server-Sent Events frames (multi-line `data` is split per the SSE
+  spec) and adds the `Cache-Control: no-cache` /
+  `X-Accel-Buffering: no` headers expected by typical SSE clients.
+* New vignette `streaming.Rmd` with the threading caveats and end-to-
+  end examples.
+
 # drogonR 0.1.4
 
 * Path parameters in routes: `dr_get("/users/:id", ...)`. Three

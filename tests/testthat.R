@@ -9,7 +9,15 @@ heavy <- c(
   "workers",
   "backpressure",
   "path-params",
-  "response-helpers"
+  "response-helpers",
+  "static",
+  "plumber-shim-server",
+  "cpp-routes",
+  "stream-happy",
+  "stream-cancel",
+  "stream-edge",
+  "cpp-stream-routes",
+  "rate-limit"
 )
 
 on_cran <- !identical(Sys.getenv("NOT_CRAN"), "true")

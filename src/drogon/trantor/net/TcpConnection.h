@@ -351,6 +351,19 @@ class TRANTOR_EXPORT TcpConnection
     {
         closeCallback_ = std::move(cb);
     }
+    // drogonR patch: a second close-callback slot, owned by the
+    // application layer (HttpRequest consumers). The original
+    // closeCallback_ is reserved by TcpServer for its internal teardown
+    // and must not be touched. This one fires from handleClose() right
+    // after the system callback, on the same drogon I/O thread.
+    void setUserCloseCallback(const CloseCallback &cb)
+    {
+        userCloseCallback_ = cb;
+    }
+    void setUserCloseCallback(CloseCallback &&cb)
+    {
+        userCloseCallback_ = std::move(cb);
+    }
     void setSSLErrorCallback(const SSLErrorCallback &cb)
     {
         sslErrorCallback_ = cb;
@@ -372,6 +385,8 @@ class TRANTOR_EXPORT TcpConnection
     RecvMessageCallback recvMsgCallback_;
     ConnectionCallback connectionCallback_;
     CloseCallback closeCallback_;
+    // drogonR patch: see setUserCloseCallback() above.
+    CloseCallback userCloseCallback_;
     WriteCompleteCallback writeCompleteCallback_;
     HighWaterMarkCallback highWaterMarkCallback_;
     SSLErrorCallback sslErrorCallback_;

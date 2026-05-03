@@ -1,0 +1,14 @@
+Package: drogonRtestbackend
+Type: Package
+Title: Test Backend for drogonR Native (C-ABI) Routes
+Version: 0.0.1
+Description: Minimal C-callable backend used by the drogonR test suite
+    to verify the dr_get_cpp() / dr_post_cpp() native ABI without
+    requiring an external dependency like ggmlR. Exposes a handful
+    of trivial handlers (echo, content-type, status, headers,
+    path-params) via R_RegisterCCallable so drogonR can resolve them
+    with R_GetCCallable.
+License: MIT + file LICENSE
+Encoding: UTF-8
+NeedsCompilation: yes
+LinkingTo: drogonR

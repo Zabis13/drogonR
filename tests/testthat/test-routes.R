@@ -1,7 +1,7 @@
 # Pure-R unit tests for route registration. No server needed — we
 # inspect the app$routes table directly. These cover dr_put / dr_delete
 # (otherwise untouched) plus the input-validation paths shared across
-# all four methods, plus the dr_get_cpp() v0.2 stub.
+# all four methods, plus dr_*_cpp argument validation.
 
 test_that("dr_get / dr_post / dr_put / dr_delete each register under the right key", {
   app <- dr_app() |>
@@ -39,10 +39,27 @@ test_that("dr_put / dr_delete reject non-app, non-function, non-string inputs", 
   expect_error(dr_delete(app, NA_character_, function(req) ""), "single string")
 })
 
-test_that("dr_get_cpp is a stub that errors with a v0.2 hint", {
+test_that("dr_*_cpp validate inputs", {
   app <- dr_app()
-  expect_error(dr_get_cpp(app, "/native", function(req) ""),
-               "not yet implemented")
-  expect_error(dr_get_cpp(app, "/native", function(req) ""),
-               "v0.2")
+
+  expect_error(dr_get_cpp(list(), "/x", "pkg", "sym"), "drogon_app")
+
+  expect_error(dr_get_cpp(app, c("/a", "/b"), "pkg", "sym"), "single string")
+  expect_error(dr_get_cpp(app, NA_character_,  "pkg", "sym"), "single string")
+
+  expect_error(dr_get_cpp(app, "/x", "",            "sym"), "non-empty string")
+  expect_error(dr_get_cpp(app, "/x", NA_character_, "sym"), "non-empty string")
+  expect_error(dr_get_cpp(app, "/x", c("a", "b"),   "sym"), "non-empty string")
+
+  expect_error(dr_get_cpp(app, "/x", "pkg", ""),            "non-empty string")
+  expect_error(dr_get_cpp(app, "/x", "pkg", NA_character_), "non-empty string")
+})
+
+test_that("dr_*_cpp errors when package is not installed", {
+  app <- dr_app()
+  pkg <- "drogonR.nonexistent.pkg.zzz"
+  expect_error(dr_get_cpp   (app, "/a", pkg, "sym"), "not installed")
+  expect_error(dr_post_cpp  (app, "/b", pkg, "sym"), "not installed")
+  expect_error(dr_put_cpp   (app, "/c", pkg, "sym"), "not installed")
+  expect_error(dr_delete_cpp(app, "/d", pkg, "sym"), "not installed")
 })

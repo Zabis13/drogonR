@@ -8,6 +8,7 @@
 ^cran-comments\.md$
 ^CRAN-SUBMISSION$
 ^drogonR_architecture\.md$
+^inst/test-backend$
 ^uploads$
 ^\.Rhistory$
 ^\.gitignore$
@@ -20,3 +21,4 @@
 \.dll$
 ^src/Makevars$
 ^src/Makevars\.win$
+^tools/bench/\.libs$

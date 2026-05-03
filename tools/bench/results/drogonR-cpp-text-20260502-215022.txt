@@ -1,0 +1,10 @@
+# drogonR-cpp text  2026-05-02T21:50:54+03:00
+# wrk -t4 -c50 -d30s http://127.0.0.1:8082/ping-text
+Running 30s test @ http://127.0.0.1:8082/ping-text
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   202.26us   86.55us   4.01ms   78.03%
+    Req/Sec    58.98k     2.51k   66.57k    67.94%
+  7065972 requests in 30.10s, 849.07MB read
+Requests/sec: 234752.81
+Transfer/sec:     28.21MB

@@ -1,7 +1,7 @@
 Package: drogonR
 Type: Package
 Title: High-Performance HTTP Server for R via 'Drogon'
-Version: 0.1.4
+Version: 0.1.6
 Authors@R: c(
     person("Yuri", "Baramykov",
         email = "lbsbmsu@mail.ru",
@@ -18,7 +18,9 @@ Authors@R: c(
     person(family = "JsonCpp Contributors", role = c("ctb", "cph"),
         comment = "See src/drogon/third_party/jsoncpp/AUTHORS in the package source"),
     person("Bert", "Belder", role = c("ctb", "cph"),
-        comment = "Author of the bundled wepoll library (Windows epoll shim)"))
+        comment = "Author of the bundled wepoll library (Windows epoll shim)"),
+    person(family = "mman-win32 contributors", role = c("ctb", "cph"),
+        comment = "Authors of the bundled mman-win32 library; see src/mman-win32/LICENSE"))
 Description: Provides an 'R' interface to the 'Drogon' high-performance
     'C++' 'HTTP' server framework. Offers a 'plumber'-style application
     programming interface for building 'REST' services from 'R' with
@@ -33,7 +35,11 @@ LinkingTo:
     later
 Suggests:
     testthat (>= 3.0.0),
-    httr2
+    httr2,
+    plumber,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
 License: MIT + file LICENSE
 Encoding: UTF-8
 SystemRequirements: C++17, GNU make, OpenSSL (optional, for HTTPS)

@@ -46,7 +46,21 @@ server_setup <- function(app) {
   writeBin(png_bytes, png_path)
   writeLines(c("col_a,col_b", "1,foo", "2,bar"), csv_path)
 
+  # Static-mount target: a small directory with one CSS file. Lives in
+  # tempdir so we never write to the install tree.
+  static_dir <- file.path(tempdir(), "drogonR-diag-static")
+  dir.create(static_dir, showWarnings = FALSE, recursive = TRUE)
+  writeLines("body { font: 14px sans-serif; }",
+             file.path(static_dir, "site.css"))
+
   app |>
+    dr_on_error(function(req, err) {
+      dr_json(list(error = conditionMessage(err),
+                   path  = req$path,
+                   from  = "dr_on_error"),
+              status = 500L)
+    }) |>
+    dr_static("/assets", static_dir) |>
     dr_get("/hello", function(req) "hello world") |>
     dr_get("/users/:id", function(req) {
       sprintf("user id = %s", req$params[["id"]])
@@ -205,7 +219,7 @@ hit("GET", "/whoami", headers = "User-Agent: drogonR-diag/1.0")
 section(8, "GET /json — fast-path JSON response")
 hit("GET", "/json")
 
-section(9, "GET /boom — R handler error becomes HTTP 500")
+section(9, "GET /boom — handler error → dr_on_error JSON 500")
 b9 <- hit("GET", "/boom")
 if (!grepl("kaboom", b9, fixed = TRUE)) {
   cat("WARN: response body did not contain 'kaboom' — error message ",
@@ -213,6 +227,9 @@ if (!grepl("kaboom", b9, fixed = TRUE)) {
 }
 if (!grepl("HTTP 500", b9, fixed = TRUE)) {
   cat("WARN: status code is not 500.\n")
+}
+if (!grepl("dr_on_error", b9, fixed = TRUE)) {
+  cat("WARN: custom on_error did not run (no 'dr_on_error' marker).\n")
 }
 
 section(10, "GET /not-a-route — implicit 404")
@@ -262,6 +279,16 @@ hit_csv <- system2("curl",
                    args = shQuote(c("-s", "-D", "-", paste0(BASE, "/file/csv"))),
                    stdout = TRUE)
 cat(paste(hit_csv, collapse = "\n"), "\n", sep = ""); flush_now()
+
+section(16, "GET /assets/site.css — dr_static() served from C++ I/O thread")
+hit_css <- system2("curl",
+                   args = shQuote(c("-s", "-D", "-",
+                                    paste0(BASE, "/assets/site.css"))),
+                   stdout = TRUE)
+cat(paste(hit_css, collapse = "\n"), "\n", sep = ""); flush_now()
+
+section(17, "GET /assets/%2e%2e/passwd — path traversal must be 403/404")
+hit("GET", "/assets/%2e%2e/passwd")
 
 cat("\n")
 ts("done — stopping server")

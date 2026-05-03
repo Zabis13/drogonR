@@ -61,7 +61,10 @@ static void runDispatcher(int * /*event_flags*/, void *data);
 // drogonR_init_later() below. NULL until R-side .onLoad runs.
 typedef void (*later_fd_fn)(void (*)(int *, void *), void *, int,
                             struct pollfd *, double, int);
+typedef void (*later_fn)(void (*)(void*), void*, double, int);
 static later_fd_fn g_later_fd = NULL;
+// Used by stream_session.cpp via `extern later_fn g_later`.
+later_fn            g_later    = NULL;
 
 // Public entrypoints that need later must call this guard first.
 static inline void requireLaterInitialized() {
@@ -231,6 +234,52 @@ SEXP callHandlerSafely(SEXP handler, SEXP req_list, int *errorOccurred) {
     UNPROTECT(1);
     return res;
 }
+
+// Test whether `value` is a `drogon_stream` list (the return shape of
+// dr_stream()). The class is set on the R side; we just check it.
+bool isDrogonStream(SEXP value) {
+    if (TYPEOF(value) != VECSXP) return false;
+    SEXP cls = Rf_getAttrib(value, R_ClassSymbol);
+    if (TYPEOF(cls) != STRSXP) return false;
+    int n = LENGTH(cls);
+    for (int i = 0; i < n; ++i) {
+        if (std::strcmp(CHAR(STRING_ELT(cls, i)), "drogon_stream") == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Pull `nm` out of a named list. Returns R_NilValue on miss.
+SEXP namedField(SEXP list, const char *nm) {
+    SEXP nms = Rf_getAttrib(list, R_NamesSymbol);
+    if (TYPEOF(nms) != STRSXP) return R_NilValue;
+    int n = LENGTH(list);
+    for (int i = 0; i < n; ++i) {
+        if (std::strcmp(CHAR(STRING_ELT(nms, i)), nm) == 0) {
+            return VECTOR_ELT(list, i);
+        }
+    }
+    return R_NilValue;
+}
+
+// Read the headers list out of a drogon_stream value into the
+// flat-pair shape startStreamSession() expects. Skips entries with
+// non-character values.
+std::vector<StreamHeader> parseStreamHeaders(SEXP s_headers) {
+    std::vector<StreamHeader> out;
+    if (TYPEOF(s_headers) != VECSXP) return out;
+    SEXP nms = Rf_getAttrib(s_headers, R_NamesSymbol);
+    if (TYPEOF(nms) != STRSXP) return out;
+    int n = LENGTH(s_headers);
+    for (int i = 0; i < n; ++i) {
+        SEXP v = VECTOR_ELT(s_headers, i);
+        if (TYPEOF(v) != STRSXP || LENGTH(v) < 1) continue;
+        out.push_back({CHAR(STRING_ELT(nms, i)),
+                       CHAR(STRING_ELT(v, 0))});
+    }
+    return out;
+}
 } // namespace
 
 void registerDispatcherFd(int readFd) {
@@ -262,6 +311,7 @@ static void runDispatcher(int * /*event_flags*/, void * /*data*/) {
         if (r) handler = r->handler;
 
         drogon::HttpResponsePtr resp;
+        bool streaming_taken_over = false;
 
         if (TYPEOF(handler) != CLOSXP) {
             resp = makeErrorResponse("no handler registered for this route");
@@ -293,11 +343,49 @@ static void runDispatcher(int * /*event_flags*/, void * /*data*/) {
                 resp = makeErrorResponse(body);
             } else {
                 PROTECT(res);
-                resp = buildResponse(res);
+                if (isDrogonStream(res)) {
+                    // Streaming path. The session takes ownership of
+                    // pr.respond and invokes it with the async-stream
+                    // response from inside startStreamSession.
+                    SEXP s_next = namedField(res, "next_chunk");
+                    SEXP s_state = namedField(res, "state");
+                    SEXP s_ct    = namedField(res, "content_type");
+                    SEXP s_hdr   = namedField(res, "headers");
+                    SEXP s_int   = namedField(res, "min_interval");
+                    if (TYPEOF(s_next) != CLOSXP) {
+                        resp = makeErrorResponse(
+                            "drogon_stream: next_chunk is not a function");
+                    } else {
+                        std::string ct = "text/event-stream";
+                        if (TYPEOF(s_ct) == STRSXP && LENGTH(s_ct) >= 1) {
+                            ct = CHAR(STRING_ELT(s_ct, 0));
+                        }
+                        double min_interval = 0.0;
+                        if (TYPEOF(s_int) == REALSXP && LENGTH(s_int) >= 1) {
+                            min_interval = REAL(s_int)[0];
+                        } else if (TYPEOF(s_int) == INTSXP &&
+                                   LENGTH(s_int) >= 1) {
+                            min_interval = (double) INTEGER(s_int)[0];
+                        }
+                        startStreamSession(pr.respond, s_next, s_state,
+                                           ct, parseStreamHeaders(s_hdr),
+                                           // drogonR patch: pass the
+                                           // connection through so the
+                                           // session can install an
+                                           // onClose callback.
+                                           pr.connection,
+                                           min_interval);
+                        streaming_taken_over = true;
+                    }
+                } else {
+                    resp = buildResponse(res);
+                }
                 UNPROTECT(1); // res
                 UNPROTECT(1); // req_list
             }
         }
+
+        if (streaming_taken_over) continue;
 
         // Per the contract: callback must be invoked outside the protected
         // region, exactly once, even on error paths.
@@ -321,12 +409,20 @@ static void runDispatcher(int * /*event_flags*/, void * /*data*/) {
 // after later's namespace (and DLL) has been loaded. Idempotent — safe
 // to call more than once.
 extern "C" SEXP drogonR_init_later(void) {
-    if (drogonR::g_later_fd != NULL) return R_NilValue;
+    if (drogonR::g_later_fd != NULL && drogonR::g_later != NULL) {
+        return R_NilValue;
+    }
 
     DL_FUNC fd_fn = R_GetCCallable("later", "execLaterFdNative");
     if (fd_fn == NULL) {
         Rf_error("R_GetCCallable(\"later\", \"execLaterFdNative\") returned NULL");
     }
     drogonR::g_later_fd = reinterpret_cast<drogonR::later_fd_fn>(fd_fn);
+
+    DL_FUNC l_fn = R_GetCCallable("later", "execLaterNative2");
+    if (l_fn == NULL) {
+        Rf_error("R_GetCCallable(\"later\", \"execLaterNative2\") returned NULL");
+    }
+    drogonR::g_later = reinterpret_cast<drogonR::later_fn>(l_fn);
     return R_NilValue;
 }

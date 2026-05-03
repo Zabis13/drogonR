@@ -168,6 +168,8 @@ sed \
   -e "s|@WEPOLL_CPPFLAGS@||g" \
   -e "s|@WEPOLL_OBJECTS@||g" \
   -e "s|@WINDOWS_OBJECTS@||g" \
+  -e "s|@MMAN_CPPFLAGS@||g" \
+  -e "s|@MMAN_OBJECTS@||g" \
   src/Makevars.in > src/Makevars
 
 echo "Configuration complete."

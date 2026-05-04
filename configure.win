@@ -138,7 +138,7 @@ POLLER_OBJECTS="drogon/trantor/net/inner/poller/EpollPoller.o drogon/trantor/net
 FILEBUF_OBJECTS="drogon/trantor/net/inner/FileBufferNodeWin.o"
 WINDOWS_OBJECTS="drogon/trantor/utils/WindowsSupport.o"
 
-PLATFORM_LIBS="-lws2_32 -liphlpapi"
+PLATFORM_LIBS="-lws2_32 -liphlpapi -lrpcrt4"
 
 # --- Generate Makevars.win ----------------------------------------------
 echo "Generating src/Makevars.win..."

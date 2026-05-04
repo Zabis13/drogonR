@@ -23,7 +23,8 @@
 #include <strings.h>
 #include <iostream>
 #elif defined _WIN32
-// drogonR: lowercased to avoid Wepoll.h/wepoll.h case clash (CRAN portability).
+// drogonR: drogon's wepoll fork (provides epoll_post_signal/EPOLLEVENT);
+// filename lowercased to avoid Wepoll.h/wepoll.h case clash (CRAN portability).
 #include "wepoll.h"
 #include <assert.h>
 #include <iostream>

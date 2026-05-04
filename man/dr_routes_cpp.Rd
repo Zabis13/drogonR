@@ -20,7 +20,7 @@ dr_delete_cpp(app, path, package, callable)
 \item{app}{A `drogon_app` created by [dr_app()].}
 
 \item{path}{Request path, with the same `:name` / `<name>` /
-`{name}` placeholder syntaxes as [dr_get()]. Path parameter
+`\{name\}` placeholder syntaxes as [dr_get()]. Path parameter
 values are passed positionally to the handler.}
 
 \item{package}{Name of the backend R package that registered the

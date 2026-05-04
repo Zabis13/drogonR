@@ -28,6 +28,12 @@ Expected NOTEs:
   Their copyright notices are preserved in the bundled source tree
   (see the LICENSE files under `src/drogon/`).
 
+## Build time
+
+Installation requires compiling vendored Drogon C++ HTTP framework
+(~110 translation units). Expected install time: 5-7 min on Windows,
+2-3 min on Linux. This is known and unavoidable without pre-built binaries.
+
 ## Test environments
 
 * Local: Linux (Ubuntu 24.04), R 4.3.3, GCC 13.3.0

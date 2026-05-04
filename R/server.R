@@ -218,7 +218,7 @@ dr_delete <- function(app, path, handler) {
 #'
 #' @param app A `drogon_app` created by [dr_app()].
 #' @param path Request path, with the same `:name` / `<name>` /
-#'   `{name}` placeholder syntaxes as [dr_get()]. Path parameter
+#'   `\{name\}` placeholder syntaxes as [dr_get()]. Path parameter
 #'   values are passed positionally to the handler.
 #' @param package Name of the backend R package that registered the
 #'   callable.

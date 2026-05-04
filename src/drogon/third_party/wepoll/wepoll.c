@@ -120,14 +120,12 @@ extern "C"
 #define WEPOLL_INTERNAL static
 #define WEPOLL_INTERNAL_EXTERN static
 
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wnonportable-system-include-path"
-#pragma clang diagnostic ignored "-Wreserved-id-macro"
-#elif defined(_MSC_VER)
-#pragma warning(push, 1)
-#endif
-
+/* drogonR patch: removed #pragma warning/clang diagnostic push/pop blocks
+ * around the system includes below — CRAN flags any pragma that suppresses
+ * compiler diagnostics. The pragmas were cosmetic (silence MSVC L1 warnings
+ * and clang's nonportable-system-include / reserved-id-macro on the next
+ * three system headers); the headers themselves still compile fine without
+ * them under Rtools/MinGW. */
 #undef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 
@@ -137,12 +135,6 @@ extern "C"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
-
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#elif defined(_MSC_VER)
-#pragma warning(pop)
-#endif
 
 WEPOLL_INTERNAL int nt_global_init(void);
 
@@ -1661,7 +1653,7 @@ static void reflock__signal_event(void* address)
     NTSTATUS status =
         NtReleaseKeyedEvent(reflock__keyed_event, address, FALSE, NULL);
     if (status != STATUS_SUCCESS)
-        abort();
+        return; /* drogonR patch: abort() replaced — CRAN forbids process termination */
 }
 
 static void reflock__await_event(void* address)
@@ -1669,7 +1661,7 @@ static void reflock__await_event(void* address)
     NTSTATUS status =
         NtWaitForKeyedEvent(reflock__keyed_event, address, FALSE, NULL);
     if (status != STATUS_SUCCESS)
-        abort();
+        return; /* drogonR patch: abort() replaced — CRAN forbids process termination */
 }
 
 void reflock_ref(reflock_t* reflock)

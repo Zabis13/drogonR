@@ -441,7 +441,9 @@ std::string getUuid(bool lowercase)
     auto len = snprintf(tempStr,
                         sizeof(tempStr),
                         "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-                        uu.Data1,
+                        // drogonR patch: Data1 is `unsigned long` on Windows
+                        // (LLP64); cast to silence -Wformat (= unsigned int).
+                        static_cast<unsigned int>(uu.Data1),
                         uu.Data2,
                         uu.Data3,
                         uu.Data4[0],

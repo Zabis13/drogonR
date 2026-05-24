@@ -1,5 +1,7 @@
 # drogonR
 
+[![R-hub](https://github.com/Zabis13/drogonR/actions/workflows/rhub.yaml/badge.svg)](https://github.com/Zabis13/drogonR/actions/workflows/rhub.yaml)
+
 High-performance HTTP server for R, powered by the
 [Drogon](https://github.com/drogonframework/drogon) C++ framework.
 

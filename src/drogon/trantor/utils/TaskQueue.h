@@ -49,7 +49,7 @@ class TaskQueue : public NonCopyable
             task();
             prom.set_value(1);
         });
-        fut.get();
+        (void)fut.get();  // drogonR patch: discard [[nodiscard]] result; sync only
     };
     virtual ~TaskQueue()
     {

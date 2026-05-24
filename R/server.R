@@ -449,9 +449,11 @@ dr_post_cpp_stream <- function(app, path, package, callable,
 #'   duration of the response. Default `4L`. Increase if you have many
 #'   concurrent long-running cpp-stream sessions (e.g. LLM token
 #'   streams). Has no effect on R-side handlers.
-#' @param upload_path Directory where Drogon stores uploaded files. By
-#'   default, a fresh subdirectory inside [tempdir()] is created so the
-#'   package never writes to its installation directory.
+#' @param upload_path Directory where Drogon stores uploaded files.
+#'   Defaults to `NULL`, in which case a fresh subdirectory inside
+#'   [tempdir()] is created so the package never writes to the user's
+#'   home filespace or the installation directory. Pass an explicit
+#'   path to override.
 #'
 #' @return `NULL`, invisibly. Prints a one-line listening message.
 #' @examples
@@ -472,7 +474,7 @@ dr_serve <- function(app, port = 8080L, threads = 1L,
                      on_worker_start = NULL,
                      max_queue = 1024L,
                      cpp_workers = 4L,
-                     upload_path = file.path(tempdir(), "drogonR-uploads")) {
+                     upload_path = NULL) {
   .dr_check_app(app)
   if (isTRUE(.Call(drogonR_server_running))) {
     stop("a drogonR server is already running in this process; ",
@@ -505,9 +507,12 @@ dr_serve <- function(app, port = 8080L, threads = 1L,
   if (!is.null(on_worker_start) && !is.function(on_worker_start)) {
     stop("`on_worker_start` must be NULL or a function", call. = FALSE)
   }
+  if (is.null(upload_path)) {
+    upload_path <- file.path(tempdir(), "drogonR-uploads")
+  }
   if (!is.character(upload_path) || length(upload_path) != 1L ||
       is.na(upload_path)) {
-    stop("`upload_path` must be a single string", call. = FALSE)
+    stop("`upload_path` must be a single string or NULL", call. = FALSE)
   }
   dir.create(upload_path, showWarnings = FALSE, recursive = TRUE)
   upload_path <- normalizePath(upload_path, mustWork = TRUE)

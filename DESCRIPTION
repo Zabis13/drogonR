@@ -1,7 +1,7 @@
 Package: drogonR
 Type: Package
 Title: High-Performance HTTP Server for R via 'Drogon'
-Version: 0.1.6
+Version: 0.1.7
 Authors@R: c(
     person("Yuri", "Baramykov",
         email = "lbsbmsu@mail.ru",
@@ -22,9 +22,10 @@ Authors@R: c(
     person(family = "mman-win32 contributors", role = c("ctb", "cph"),
         comment = "Authors of the bundled mman-win32 library; see src/mman-win32/LICENSE"))
 Description: Provides an 'R' interface to the 'Drogon' high-performance
-    'C++' 'HTTP' server framework. Offers a 'plumber'-style application
-    programming interface for building 'REST' services from 'R' with
-    substantially higher throughput.
+    'C++' 'HTTP' server framework
+    (<https://github.com/drogonframework/drogon>). Offers a 'plumber'-style
+    application programming interface for building 'REST' services from
+    'R' with substantially higher throughput.
 Depends:
     R (>= 4.1.0)
 Imports:

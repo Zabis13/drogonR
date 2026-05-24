@@ -1,3 +1,7 @@
+# drogonR 0.1.7
+
+* Build portability and CRAN check fixes: WebAssembly/webR build (`htonll` under Emscripten), a `[[nodiscard]]` warning under clang, and two rchk PROTECT-balance findings in the JSON writer and response builder.
+
 # drogonR 0.1.6
 
 * `dr_rate_limit(app, capacity, window, type, scope, routes)` —

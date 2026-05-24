@@ -33,6 +33,14 @@ Useful for SSE feeds that should be paced rather than bursted.
 The delay is a floor, not a guarantee — heavy R-side work or
 other queued callbacks may push the next pump out further.}
 }
+\value{
+A list of class `drogon_stream` carrying `next_chunk`,
+  `state`, `content_type`, `headers`, and `min_interval`. Return
+  it from a route handler; the dispatcher recognises the class
+  and opens an HTTP chunked-transfer response, then pumps
+  `next_chunk()` on the main R thread until it signals
+  `done = TRUE`.
+}
 \description{
 Return value for a route handler when the response should be
 streamed (HTTP chunked transfer). Instead of producing one body

@@ -180,7 +180,8 @@ WriteResult writeList(std::string &buf, SEXP x, bool autoUnbox, int depth) {
         // has no class attribute so it passes through.
         return WriteResult::Unsupported;
     }
-    SEXP nms = Rf_getAttrib(x, R_NamesSymbol);
+    // drogonR patch: protect nms across allocating writeValue calls (rchk)
+    SEXP nms = PROTECT(Rf_getAttrib(x, R_NamesSymbol));
     R_xlen_t n = Rf_xlength(x);
     bool isObject = (nms != R_NilValue && TYPEOF(nms) == STRSXP &&
                      Rf_xlength(nms) == n);
@@ -193,22 +194,24 @@ WriteResult writeList(std::string &buf, SEXP x, bool autoUnbox, int depth) {
             // jsonlite drops "" / NA names by silently using empty
             // strings — we don't want to silently disagree, so any
             // missing name kicks us to fallback.
-            if (key == NA_STRING) return WriteResult::Unsupported;
+            if (key == NA_STRING) { UNPROTECT(1); return WriteResult::Unsupported; }
             const char *ks = CHAR(key);
-            if (ks[0] == '\0') return WriteResult::Unsupported;
+            if (ks[0] == '\0') { UNPROTECT(1); return WriteResult::Unsupported; }
             appendEscapedString(buf, ks, std::strlen(ks));
             buf.push_back(':');
             WriteResult r = writeValue(buf, VECTOR_ELT(x, i),
                                        autoUnbox, depth + 1);
-            if (r != WriteResult::Ok) return r;
+            if (r != WriteResult::Ok) { UNPROTECT(1); return r; }
         }
         buf.push_back('}');
+        UNPROTECT(1);
         return WriteResult::Ok;
     }
     // Unnamed (or partially named — we treat partial-naming as
     // unsupported, since the layout differs between jsonlite and what
     // we'd emit; conservatively bail).
-    if (nms != R_NilValue) return WriteResult::Unsupported;
+    if (nms != R_NilValue) { UNPROTECT(1); return WriteResult::Unsupported; }
+    UNPROTECT(1);  // drogonR patch: nms no longer needed past this point
     buf.push_back('[');
     for (R_xlen_t i = 0; i < n; ++i) {
         if (i) buf.push_back(',');

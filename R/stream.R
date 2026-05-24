@@ -58,6 +58,13 @@
 #'   The delay is a floor, not a guarantee — heavy R-side work or
 #'   other queued callbacks may push the next pump out further.
 #'
+#' @return A list of class `drogon_stream` carrying `next_chunk`,
+#'   `state`, `content_type`, `headers`, and `min_interval`. Return
+#'   it from a route handler; the dispatcher recognises the class
+#'   and opens an HTTP chunked-transfer response, then pumps
+#'   `next_chunk()` on the main R thread until it signals
+#'   `done = TRUE`.
+#'
 #' @examples
 #' \dontrun{
 #' app <- dr_app() |>

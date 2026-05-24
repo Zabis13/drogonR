@@ -12,7 +12,7 @@ dr_serve(
   on_worker_start = NULL,
   max_queue = 1024L,
   cpp_workers = 4L,
-  upload_path = file.path(tempdir(), "drogonR-uploads")
+  upload_path = NULL
 )
 }
 \arguments{
@@ -47,9 +47,11 @@ duration of the response. Default `4L`. Increase if you have many
 concurrent long-running cpp-stream sessions (e.g. LLM token
 streams). Has no effect on R-side handlers.}
 
-\item{upload_path}{Directory where Drogon stores uploaded files. By
-default, a fresh subdirectory inside [tempdir()] is created so the
-package never writes to its installation directory.}
+\item{upload_path}{Directory where Drogon stores uploaded files.
+Defaults to `NULL`, in which case a fresh subdirectory inside
+[tempdir()] is created so the package never writes to the user's
+home filespace or the installation directory. Pass an explicit
+path to override.}
 }
 \value{
 `NULL`, invisibly. Prints a one-line listening message.

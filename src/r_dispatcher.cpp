@@ -139,7 +139,7 @@ drogon::HttpResponsePtr buildResponse(SEXP r_value) {
     }
 
     if (s_headers != R_NilValue && TYPEOF(s_headers) == VECSXP) {
-        SEXP hnames = Rf_getAttrib(s_headers, R_NamesSymbol);
+        SEXP hnames = PROTECT(Rf_getAttrib(s_headers, R_NamesSymbol));  // drogonR patch: protect across allocating Drogon setters (rchk)
         if (TYPEOF(hnames) == STRSXP) {
             int hn = LENGTH(s_headers);
             for (int i = 0; i < hn; ++i) {
@@ -156,6 +156,7 @@ drogon::HttpResponsePtr buildResponse(SEXP r_value) {
                 }
             }
         }
+        UNPROTECT(1);  // drogonR patch: hnames
     }
 
     return resp;

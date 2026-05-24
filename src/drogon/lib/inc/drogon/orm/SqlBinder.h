@@ -43,10 +43,11 @@
 #include <arpa/inet.h>
 #endif
 
+// drogonR patch: add __EMSCRIPTEN__ so htonll is defined under webR/wasm
 #if defined __linux__ || defined __FreeBSD__ || defined __OpenBSD__ || \
-    defined __MINGW32__ || defined __HAIKU__
+    defined __MINGW32__ || defined __HAIKU__ || defined __EMSCRIPTEN__
 
-#ifdef __linux__
+#if defined __linux__ || defined __EMSCRIPTEN__  // drogonR patch: emscripten has <endian.h>
 #include <endian.h>  // __BYTE_ORDER __LITTLE_ENDIAN
 #elif defined __FreeBSD__ || defined __OpenBSD__
 #include <sys/endian.h>  // _BYTE_ORDER _LITTLE_ENDIAN

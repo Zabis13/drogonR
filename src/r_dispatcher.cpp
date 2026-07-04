@@ -395,6 +395,13 @@ static void runDispatcher(int * /*event_flags*/, void * /*data*/) {
         } catch (...) { /* Drogon callback should not throw, but be safe */ }
     }
 
+    // WebSocket events ride the same wakeup pipe as HTTP requests, so
+    // drain them here on the main R thread too — first inbound server-WS
+    // events, then outbound WS-client events. Both are harmless no-ops
+    // when their subsystem is idle.
+    drainWsEvents();
+    drainWsClientEvents();
+
     // Re-arm. We're already running on the main R thread inside a later
     // callback, so g_later_fd is guaranteed non-NULL here — no extra guard.
     static struct pollfd pfd;

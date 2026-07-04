@@ -1,3 +1,26 @@
+# drogonR 0.1.8
+
+* WebSocket support (full-duplex, long-lived connections):
+    * `dr_ws(app, path, on_message, on_connect, on_close)` — register a
+      WebSocket endpoint served by R hooks. Hooks run on the main R
+      thread; each receives a `drogon_ws_conn` handle.
+    * `dr_ws_send(conn, msg, binary)` / `dr_ws_close(conn)` — push a
+      message to, or close, a live connection from any hook.
+    * `dr_ws_join(conn, room)` / `dr_ws_leave(conn, room)` /
+      `dr_ws_broadcast(room, msg, binary)` — named broadcast rooms, so a
+      message can fan out to every member without tracking handles.
+    * `dr_ws_cpp(app, path, package, callable)` — R-bypass fast path: a
+      compiled C handler (ABI `drogonr_ws_handler_t` in
+      `inst/include/drogonR.h`) services every frame on Drogon's I/O
+      thread, with a thread-safe `send`/`close`/`is_connected` callback
+      set usable from a detached backend thread (e.g. an LLM streaming
+      tokens from C++ without a per-token round-trip through R).
+    * `dr_ws_cpp()` gains continuous-batching guards for scheduler
+      backends: `max_conns` (refuse an over-capacity connection with WS
+      close 1013), `idle_timeout` (reap a connection with no outgoing
+      frame for that long), and `max_lifetime` (absolute duration
+      ceiling). All default to off.
+
 # drogonR 0.1.7
 
 * Build portability and CRAN check fixes: WebAssembly/webR build (`htonll` under Emscripten), a `[[nodiscard]]` warning under clang, and two rchk PROTECT-balance findings in the JSON writer and response builder.

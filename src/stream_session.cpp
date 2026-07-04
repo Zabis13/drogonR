@@ -120,18 +120,25 @@ void releaseSEXPs(StreamSession &s) {
 // Forward decl — pump callback scheduled via later::later().
 void pumpStreamMain(void *data);
 
-// Schedule a pump on the main R thread. `id` is heap-allocated so it
-// survives the tail call into later; the pump frees it. The session's
-// configured min_interval is honoured as a delay floor — looking the
-// session up adds a hash hit per pump but keeps the rate-limit field
-// in one place.
+// The session id is smuggled through later's void* payload by value
+// (no heap carrier), so an orphaned pump left in later's queue at
+// teardown frees nothing when it's dropped. Requires void* to hold a
+// uint64_t — true on every 64-bit target we build for (Linux/macOS/BSD
+// epoll/kqueue, Windows LLP64 wepoll).
+static_assert(sizeof(void *) >= sizeof(std::uint64_t),
+              "drogonR stream pump packs the session id into later's void* "
+              "payload; a 32-bit void* would truncate it");
+
+// Schedule a pump on the main R thread. The session's configured
+// min_interval is honoured as a delay floor — looking the session up
+// adds a hash hit per pump but keeps the rate-limit field in one place.
 void scheduleNextPump(std::uint64_t id) {
     if (g_later == nullptr) return;          // server shutting down
     double secs = 0.0;
     if (auto sess = findSession(id)) {
         secs = sess->min_interval;
     }
-    auto *carrier = new std::uint64_t(id);
+    void *carrier = reinterpret_cast<void *>(static_cast<std::uintptr_t>(id));
     g_later(&pumpStreamMain, carrier, secs, /*loop*/ 0);
 }
 
@@ -182,8 +189,8 @@ SEXP namedField(SEXP list, const char *name) {
 
 // Pump callback. Runs on the main R thread under later's scheduler.
 void pumpStreamMain(void *data) {
-    std::unique_ptr<std::uint64_t> idHolder(static_cast<std::uint64_t*>(data));
-    std::uint64_t id = *idHolder;
+    std::uint64_t id = static_cast<std::uint64_t>(
+        reinterpret_cast<std::uintptr_t>(data));
 
     auto sess = findSession(id);
     if (!sess) return;
@@ -363,14 +370,16 @@ void clearAllStreamSessions() {
     }
     for (auto &sess : drained) {
         sess->closing.store(true);
-        if (sess->loop && sess->stream) {
-            sess->loop->queueInLoop([sess]() {
-                if (sess->stream) {
-                    sess->stream->close();
-                    sess->stream.reset();
-                }
-            });
-        }
+        // By the time server_stop() calls us, Drogon's IO EventLoop has
+        // already been quit() + joined, so sess->loop dangles at a
+        // destroyed EventLoop — queueInLoop on it is a use-after-free.
+        // (EventLoop::loop() drains funcsOnQuit_, which closes the
+        // TcpConnection, *before* the thread-local shared_ptr<EventLoop>
+        // is released at thread exit; join() returns only after that.)
+        // Dropping the stream here is safe without the loop: ~ResponseStream
+        // calls close(), but AsyncStreamImpl's send/close lock a weak_ptr
+        // to the already-destroyed TcpConnection and no-op on lock failure.
+        sess->stream.reset();
         // Release on caller's thread (must be main R thread for this
         // to be safe — clearAllStreamSessions is invoked from the
         // dispatcher's stop path).

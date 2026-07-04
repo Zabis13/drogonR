@@ -1,7 +1,7 @@
 Package: drogonR
 Type: Package
 Title: High-Performance HTTP Server for R via 'Drogon'
-Version: 0.1.7
+Version: 0.1.8
 Authors@R: c(
     person("Yuri", "Baramykov",
         email = "lbsbmsu@mail.ru",
@@ -25,7 +25,8 @@ Description: Provides an 'R' interface to the 'Drogon' high-performance
     'C++' 'HTTP' server framework
     (<https://github.com/drogonframework/drogon>). Offers a 'plumber'-style
     application programming interface for building 'REST' services from
-    'R' with substantially higher throughput.
+    'R' with substantially higher throughput, including streaming
+    responses and full-duplex 'WebSocket' endpoints.
 Depends:
     R (>= 4.1.0)
 Imports:
@@ -38,6 +39,7 @@ Suggests:
     testthat (>= 3.0.0),
     httr2,
     curl,
+    websocket,
     plumber,
     knitr,
     rmarkdown

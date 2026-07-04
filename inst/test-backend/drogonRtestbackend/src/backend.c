@@ -254,6 +254,79 @@ static int sh_tick_long(const char *body,        size_t  body_len,
     return 0;
 }
 
+/* --- WebSocket handlers (drogonr_ws_handler_t) ------------------------- */
+
+/* Echo backend: on every message, send the same bytes straight back on
+ * the IO thread. On connect, greet the client so the test can confirm
+ * the connect event reached C++. */
+static int ws_echo(drogonr_ws_session_t *session,
+                   drogonr_ws_event_t event,
+                   const char *msg, size_t len, int binary,
+                   drogonr_ws_send_fn send,
+                   drogonr_ws_close_fn close,
+                   drogonr_ws_is_connected_fn is_connected) {
+    (void) close; (void) is_connected;
+    switch (event) {
+    case DROGONR_WS_CONNECT: {
+        static const char hi[] = "cpp-welcome";
+        send(session, hi, sizeof(hi) - 1, 0);
+        break;
+    }
+    case DROGONR_WS_MESSAGE:
+        send(session, msg, len, binary);   /* echo, same frame type */
+        break;
+    case DROGONR_WS_CLOSE:
+        break;
+    }
+    return 0;
+}
+
+/* Streaming backend: on a "go" message, spawn a detached thread that
+ * emits three frames with small pauses, exercising the anchor lifetime
+ * (the session must survive past the handler returning). */
+#include <pthread.h>
+
+typedef struct {
+    drogonr_ws_session_t     *session;
+    drogonr_ws_send_fn        send;
+    drogonr_ws_is_connected_fn is_connected;
+} ws_stream_args;
+
+static void *ws_stream_worker(void *arg) {
+    ws_stream_args *a = (ws_stream_args *) arg;
+    for (int i = 1; i <= 3; i++) {
+        if (!a->is_connected(a->session)) break;   /* backend-side hint */
+        char buf[16];
+        int n = snprintf(buf, sizeof(buf), "tok-%d", i);
+        a->send(a->session, buf, (size_t) n, 0);
+        usleep(30000); /* 30 ms */
+    }
+    free(a);
+    return NULL;
+}
+
+static int ws_stream(drogonr_ws_session_t *session,
+                     drogonr_ws_event_t event,
+                     const char *msg, size_t len, int binary,
+                     drogonr_ws_send_fn send,
+                     drogonr_ws_close_fn close,
+                     drogonr_ws_is_connected_fn is_connected) {
+    (void) msg; (void) len; (void) binary; (void) close;
+    if (event == DROGONR_WS_MESSAGE) {
+        ws_stream_args *a = malloc(sizeof(*a));
+        a->session = session;
+        a->send = send;
+        a->is_connected = is_connected;
+        pthread_t t;
+        if (pthread_create(&t, NULL, ws_stream_worker, a) == 0) {
+            pthread_detach(t);
+        } else {
+            free(a);
+        }
+    }
+    return 0;
+}
+
 /* --- Init -------------------------------------------------------------- */
 
 void R_init_drogonRtestbackend(DllInfo *dll) {
@@ -266,5 +339,7 @@ void R_init_drogonRtestbackend(DllInfo *dll) {
     R_RegisterCCallable("drogonRtestbackend", "ping_text", (DL_FUNC) h_ping_text);
     R_RegisterCCallable("drogonRtestbackend", "tick",      (DL_FUNC) sh_tick);
     R_RegisterCCallable("drogonRtestbackend", "tick_long", (DL_FUNC) sh_tick_long);
+    R_RegisterCCallable("drogonRtestbackend", "ws_echo",   (DL_FUNC) ws_echo);
+    R_RegisterCCallable("drogonRtestbackend", "ws_stream", (DL_FUNC) ws_stream);
     R_useDynamicSymbols(dll, FALSE);
 }

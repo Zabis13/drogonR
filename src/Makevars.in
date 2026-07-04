@@ -140,6 +140,7 @@ DROGON_OBJECTS = \
   drogon/lib/src/TaskTimeoutFlag.o \
   drogon/lib/src/TokenBucketRateLimiter.o \
   drogon/lib/src/Utilities.o \
+  drogon/lib/src/WebSocketClientImpl.o \
   drogon/lib/src/WebSocketConnectionImpl.o
 
 # --- drogonR bridge objects ---------------------------------------------
@@ -149,6 +150,8 @@ BRIDGE_OBJECTS = \
   request_queue.o \
   r_dispatcher.o \
   stream_session.o \
+  ws_session.o \
+  ws_client.o \
   json_writer.o
 
 # --- All objects ---------------------------------------------------------

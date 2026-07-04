@@ -17,7 +17,13 @@ heavy <- c(
   "stream-cancel",
   "stream-edge",
   "cpp-stream-routes",
-  "rate-limit"
+  "rate-limit",
+  "ws-happy",
+  "ws-routes",
+  "ws-room",
+  "ws-cpp",
+  "ws-batching",
+  "ws-client"
 )
 
 on_cran <- !identical(Sys.getenv("NOT_CRAN"), "true")

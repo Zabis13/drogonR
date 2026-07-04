@@ -11,6 +11,15 @@
   invisible(NULL)
 }
 
+#' @keywords internal
+.onUnload <- function(libpath) {
+  # Stop the WebSocket client subsystem (if it was ever started) so its
+  # background loop thread is joined rather than leaked when the package
+  # namespace is unloaded (detach / unloadNamespace / reinstall).
+  tryCatch(.Call(drogonR_ws_shutdown), error = function(e) NULL)
+  library.dynam.unload("drogonR", libpath)
+}
+
 # Process-wide state for the parent of a multi-process serve. Workers are
 # launched as fresh R processes via processx::process$new(Rscript, ...);
 # we hold on to the process objects (so we can SIGTERM/SIGKILL them and
@@ -39,6 +48,7 @@ dr_app <- function() {
   app$routes            <- list()
   app$cpp_routes        <- list()
   app$cpp_stream_routes <- list()
+  app$ws_routes         <- list()
   app$middleware        <- list()
   app$static_mounts     <- list()
   app$rate_limits       <- list()
@@ -556,6 +566,15 @@ dr_serve <- function(app, port = 8080L, threads = 1L,
             cr$regex, cr$param_names, cr$ptr,
             as.character(cr$content_type))
     }
+    for (wr in app$ws_routes) {
+      if (!is.null(wr$cpp_ptr)) {
+        .Call(drogonR_register_ws_cpp, wr$path, wr$cpp_ptr,
+              wr$max_conns, wr$idle_timeout, wr$max_lifetime)
+      } else {
+        .Call(drogonR_register_ws, wr$path, wr$on_connect,
+              wr$on_message, wr$on_close)
+      }
+    }
     app$port <- port
     .Call(drogonR_server_start, port, threads, upload_path, max_queue,
           cpp_workers)
@@ -620,6 +639,24 @@ dr_serve <- function(app, port = 8080L, threads = 1L,
 #' @export
 dr_stop <- function() {
   .Call(drogonR_server_stop)
+  # server_stop() closes the wake pipe, which wakes later's fd-watch
+  # thread (POLLNVAL); that (detached) thread then queues its callback
+  # onto R's loop. Drain it so later frees the fd-watch's ThreadArgs
+  # rather than leaking it at process exit. run_now() with a small
+  # non-zero timeout blocks until the queued callback arrives, so we
+  # don't race the thread's scheduleCallback().
+  #
+  # Round 1 delivers the POLLNVAL callback, which re-arms the dispatcher;
+  # round 2 delivers that re-arm, which sees the closed fd
+  # (g_dispatcherFd < 0) and stops, releasing the ThreadArgs. Measured
+  # under ASAN: 1 round leaks in 6/6 runs, 2+ rounds are clean in 20/20.
+  # 3 = the required 2 plus one margin round; do NOT drop below 2 without
+  # re-running the teardown leak check. DROGONR_DRAIN_ROUNDS is a hidden
+  # override (can only raise it) for slow CI runners where the detached
+  # fd-watch thread may need longer to deliver its callback.
+  drain_rounds <- max(3L, suppressWarnings(as.integer(
+    Sys.getenv("DROGONR_DRAIN_ROUNDS", "3"))), na.rm = TRUE)
+  for (i in seq_len(drain_rounds)) later::run_now(timeoutSecs = 0.05)
   .dr_kill_workers()
   invisible(NULL)
 }

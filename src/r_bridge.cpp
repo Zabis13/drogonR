@@ -44,6 +44,18 @@ static const R_CallMethodDef CallEntries[] = {
     {"drogonR_register_cpp_stream_route",
         (DL_FUNC) &drogonR_register_cpp_stream_route, 6},
     {"drogonR_clear_routes",       (DL_FUNC) &drogonR_clear_routes,       0},
+    {"drogonR_register_ws",        (DL_FUNC) &drogonR_register_ws,        4},
+    {"drogonR_register_ws_cpp",    (DL_FUNC) &drogonR_register_ws_cpp,    5},
+    {"drogonR_ws_send",            (DL_FUNC) &drogonR_ws_send,            3},
+    {"drogonR_ws_close",           (DL_FUNC) &drogonR_ws_close,           1},
+    {"drogonR_ws_join",            (DL_FUNC) &drogonR_ws_join,            2},
+    {"drogonR_ws_leave",           (DL_FUNC) &drogonR_ws_leave,           2},
+    {"drogonR_ws_broadcast",       (DL_FUNC) &drogonR_ws_broadcast,       3},
+    {"drogonR_ws_connect",         (DL_FUNC) &drogonR_ws_connect,         5},
+    {"drogonR_ws_client_send",     (DL_FUNC) &drogonR_ws_client_send,     3},
+    {"drogonR_ws_client_close",    (DL_FUNC) &drogonR_ws_client_close,    1},
+    {"drogonR_ws_shutdown",        (DL_FUNC) &drogonR_ws_shutdown,        0},
+    {"drogonR_has_ssl",            (DL_FUNC) &drogonR_has_ssl,            0},
     {"drogonR_to_json",         (DL_FUNC) &drogonR_to_json,         2},
     {NULL, NULL, 0}
 };

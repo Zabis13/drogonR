@@ -15,6 +15,7 @@
 #include "../inst/include/drogonR.h"
 
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
@@ -119,6 +120,73 @@ const Route *getRoute(int id) {
     std::lock_guard<std::mutex> lock(g_routesMutex);
     if (id < 0 || id >= static_cast<int>(g_routes.size())) return nullptr;
     return &g_routes[id];
+}
+
+// Namespace-scope accessor to the anonymous g_running flag, so other
+// translation units (ws_session.cpp) can gate registration on it
+// without the flag needing external linkage.
+bool serverRunning() { return g_running.load(); }
+
+// Apply the optional DROGONR_LOG_LEVEL environment override
+// (trace/debug/info/warn/error/fatal, case-insensitive) to trantor's
+// global log threshold. Idempotent and cheap. Called from every entry
+// point that spins up Drogon machinery — server_start AND the WS-client
+// subsystem — because the client runs Drogon on its own loop in a
+// process that may never call server_start (e.g. this benchmark, whose
+// dr_ws_connect chatter would otherwise stay at the debug default).
+// Unset leaves Drogon's built-in default untouched.
+static void applyLogLevelFromEnv() {
+    const char *lvl = std::getenv("DROGONR_LOG_LEVEL");
+    if (!lvl) return;
+    std::string s(lvl);
+    for (char &c : s) c = static_cast<char>(std::tolower(
+        static_cast<unsigned char>(c)));
+    trantor::Logger::LogLevel level;
+    if      (s == "trace") level = trantor::Logger::kTrace;
+    else if (s == "debug") level = trantor::Logger::kDebug;
+    else if (s == "info")  level = trantor::Logger::kInfo;
+    else if (s == "warn")  level = trantor::Logger::kWarn;
+    else if (s == "error") level = trantor::Logger::kError;
+    else if (s == "fatal") level = trantor::Logger::kFatal;
+    else return;
+    // trantor::Logger::setLogLevel is the global threshold read by every
+    // trantor log site, including TcpConnectionImpl on the IO threads.
+    trantor::Logger::setLogLevel(level);
+    drogon::app().setLogLevel(level);
+}
+
+// Shared dispatcher infrastructure: the wakeup pipe, the fd binding used
+// by notifyDispatcher()/drainWakePipe(), and the later fd-watch on the
+// main R thread. Both the HTTP server and the WS-client subsystem ride
+// this one pipe, so it is brought up idempotently from whichever side
+// starts first (server_start, or lazily from dr_ws_connect). Main R
+// thread only.
+void ensureDispatcherRunning() {
+    applyLogLevelFromEnv();
+    if (g_wakePipe[0] != -1) return;
+    // Non-blocking on both ends so reads/writes never stall the I/O
+    // threads. On Windows this is a loopback TCP socketpair; on POSIX
+    // a plain pipe(2).
+    if (drogonR::makeWakePipe(g_wakePipe) != 0) {
+        Rf_error("failed to create wakeup pipe");
+    }
+    initQueueWakeup(g_wakePipe[0], g_wakePipe[1]);
+    registerDispatcherFd(g_wakePipe[0]);
+}
+
+// Counterpart teardown. Caller decides when it is safe — the server is
+// stopped and no WS clients are alive. Closing the pipe wakes later's
+// fd-watch wait_thread — blocked in poll() with a long (600s) timeout —
+// immediately via POLLNVAL; it then schedules its callback onto R's
+// queue, which the R side drains (later::run_now) so the orphaned
+// ThreadArgs is freed rather than leaked at process exit.
+void shutdownDispatcher() {
+    if (g_wakePipe[0] == -1) return;
+    unregisterDispatcherFd();
+    resetQueueWakeup();
+    closeWakeFd(g_wakePipe[0]);
+    closeWakeFd(g_wakePipe[1]);
+    g_wakePipe[0] = g_wakePipe[1] = -1;
 }
 
 // Escape regex metacharacters in a literal URL prefix. We hand the
@@ -1048,14 +1116,7 @@ SEXP drogonR_server_start(SEXP port_, SEXP threads_, SEXP upload_path_,
 
     const char *upload_path = CHAR(STRING_ELT(upload_path_, 0));
 
-    // Non-blocking on both ends so reads/writes never stall the I/O threads.
-    // On Windows this is a loopback TCP socketpair; on POSIX a plain pipe(2).
-    if (drogonR::makeWakePipe(drogonR::g_wakePipe) != 0) {
-        Rf_error("failed to create wakeup pipe");
-    }
-
-    drogonR::initQueueWakeup(drogonR::g_wakePipe[0], drogonR::g_wakePipe[1]);
-    drogonR::registerDispatcherFd(drogonR::g_wakePipe[0]);
+    drogonR::ensureDispatcherRunning();
     drogonR::setQueueMaxSize(static_cast<std::size_t>(max_queue));
 
     // Spin up the native-handler worker pool unconditionally with
@@ -1095,8 +1156,15 @@ SEXP drogonR_server_start(SEXP port_, SEXP threads_, SEXP upload_path_,
         }
     }
 
+    // WebSocket routes: hook the universal controller onto every dr_ws()
+    // path. No-op if none were registered.
+    drogonR::installWsRoutes();
+
     drogon::app().setThreadNum(threads);
     drogon::app().setUploadPath(upload_path);
+
+    drogonR::applyLogLevelFromEnv();
+
     // SO_REUSEPORT lets multi-process workers share the same port; harmless
     // for single-process serve (kernel just doesn't load-balance anything).
     drogon::app().enableReusePort(true);
@@ -1137,14 +1205,16 @@ SEXP drogonR_server_stop(void) {
     }
     drogonR::g_running.store(false);
 
-    drogonR::unregisterDispatcherFd();
-    drogonR::resetQueueWakeup();
     drogonR::setQueueMaxSize(0);
-    drogonR::clearAllStreamSessions();
 
-    drogonR::closeWakeFd(drogonR::g_wakePipe[0]);
-    drogonR::closeWakeFd(drogonR::g_wakePipe[1]);
-    drogonR::g_wakePipe[0] = drogonR::g_wakePipe[1] = -1;
+    // Tear down the dispatcher *before* clearing sessions so later's
+    // fd-watch wakes immediately (see shutdownDispatcher). Once the WS
+    // client subsystem exists this becomes conditional on "no live
+    // clients" — they share the same wake pipe.
+    drogonR::shutdownDispatcher();
+
+    drogonR::clearAllStreamSessions();
+    drogonR::clearAllWsSessions();
 
     // Drain & destroy the cpp worker pool. Its destructor blocks
     // until all enqueued tasks finish — by this point Drogon's

@@ -10,8 +10,8 @@ APIs from R, with substantially higher throughput. The Drogon, Trantor
 and JsonCpp sources are bundled and built statically — no external
 installation of Drogon is required.
 
-> **Status:** 0.1.6, in development. Linux only. Windows source
-> portability is in place; full Windows build is pending.
+> **Status:** 0.1.8, in development. Builds and passes `R CMD check` on
+> Linux, Windows, and macOS (CRAN check farm, all green).
 
 ## Architecture
 
@@ -216,6 +216,57 @@ gets its own bucket) or `"global"` (one bucket shared across the
 match set). Per-IP throttling is intentionally out of scope — do
 that in a reverse proxy. See `vignette("rate-limiting",
 package = "drogonR")`.
+
+### WebSocket
+
+Register a full-duplex WebSocket endpoint with `dr_ws()`. Unlike the
+request/response routes, a connection is long-lived: the server can
+push to the client at any time with `dr_ws_send()`, and every frame
+from the client arrives at `on_message`. The hooks run on the main R
+thread, so they may touch R state freely.
+
+```r
+app <- dr_app() |>
+  dr_ws("/ws/echo",
+        on_connect = function(conn) dr_ws_send(conn, "welcome"),
+        on_message = function(conn, msg, binary) dr_ws_send(conn, msg),
+        on_close   = function(conn) message("gone"))
+```
+
+Broadcast rooms fan a message out to many connections at once, so you
+don't have to track handles yourself:
+
+```r
+app <- dr_app() |>
+  dr_ws("/chat",
+        on_connect = function(conn) dr_ws_join(conn, "lobby"),
+        on_message = function(conn, msg, binary)
+          dr_ws_broadcast("lobby", msg))
+```
+
+For a backend that owns the socket and streams from C/C++ (e.g. an LLM
+emitting tokens), `dr_ws_cpp(app, path, package, callable)` serves
+every frame with a compiled handler on Drogon's I/O thread, bypassing
+R entirely. The handler signature is `drogonr_ws_handler_t` in
+`inst/include/drogonR.h`; its `send` callback is thread-safe and may be
+called from a detached backend thread.
+
+`dr_ws_cpp()` also accepts three optional guards for backends that
+batch many connections into one decode loop (the way `llama-server`
+uses `-np N` and its slot timeouts):
+
+```r
+app <- dr_app() |>
+  dr_ws_cpp("/ws/llm", "myllm", "handler",
+            max_conns    = 32,   # refuse the 33rd with WS close 1013
+            idle_timeout = 60,   # close after 60s with no outgoing frame
+            max_lifetime = 600)  # hard ceiling regardless of activity
+```
+
+They are the transport's safety net — a stalled decode thread can't
+leak connections, and a scheduler can't oversubscribe the KV-cache —
+so a scheduler layered on this ABI doesn't have to re-implement them
+itself. All three default to `0` (off).
 
 ## License
 

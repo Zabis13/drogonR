@@ -151,6 +151,107 @@ typedef int (*drogonr_stream_handler_t)(
     /* response metadata */
     char              **out_content_type);
 
+/* ----------------------------------------------------------------
+ * WebSocket handler ABI (full-duplex, R-bypass)
+ *
+ * For backends that own a long-lived, bidirectional connection and
+ * want to handle every frame in C/C++ — e.g. an LLM that streams
+ * tokens back over a socket without a round-trip through R per
+ * token. Registered from R via dr_ws_cpp(app, path, package,
+ * callable).
+ *
+ * Threading: the handler is invoked on the connection's Drogon I/O
+ * thread, once per event (connect / message / close). Events for a
+ * single connection are delivered in order. The handler MUST NOT
+ * touch any SEXP / call any R API, and MUST NOT block the I/O
+ * thread: if it needs to do long work (token generation), it should
+ * hand off to its own detached thread and stream results back via
+ * the send() callback from there. Blocking the I/O thread stalls
+ * every other connection sharing that loop.
+ *
+ * O(1) contract (continuous-batching backends): the handler runs
+ * synchronously on the I/O thread, so for a scheduler that batches
+ * many connections into one decode loop it MUST return in O(1):
+ * enqueue the request (prompt + session handle + a send closure) onto
+ * your own queue, wake your own decode thread, and return. Do the
+ * generation on that detached thread and push tokens back via send()
+ * — exactly the same discipline the streaming ABI documents. The
+ * session handle survives past the handler returning (see below), so
+ * the decode thread can keep using it.
+ *
+ * Session lifetime & safety: `session` is an opaque lookup handle,
+ * NOT a pointer to an object. It carries no ownership: do not free it,
+ * do not retain/release it, and do NOT cache anything you derive from
+ * it — just keep the handle itself and pass it back to the callbacks.
+ * Each callback re-resolves the live connection internally, so it is
+ * safe to keep the handle in a detached backend thread and call
+ * send()/close() after the peer has gone (or after WS_CLOSE was
+ * delivered): the lookup simply misses and the call is a no-op, never
+ * a use-after-free.
+ *
+ * Cancellation while streaming: if the client sends another frame
+ * (e.g. "stop") while your detached thread is still generating, that
+ * frame arrives as a fresh WS_MESSAGE on the I/O thread, concurrent
+ * with your thread. drogonR does NOT serialise your detached work
+ * against it — coordinating cancellation is the backend's job (set
+ * your own flag from the WS_MESSAGE handler and poll it). send() is
+ * always safe regardless.
+ * ----------------------------------------------------------------
+ */
+
+/* Opaque per-connection session handle. */
+typedef struct drogonr_ws_session drogonr_ws_session_t;
+
+/* Which lifecycle event the handler is being called for. */
+typedef enum {
+    DROGONR_WS_CONNECT = 0,   /* new connection; msg is NULL, len 0   */
+    DROGONR_WS_MESSAGE = 1,   /* a frame arrived; msg/len/binary set  */
+    DROGONR_WS_CLOSE   = 2     /* connection closed; msg is NULL, len 0 */
+} drogonr_ws_event_t;
+
+/* Send a frame to the peer. `binary` != 0 sends a binary frame,
+ * else text. Returns 0 if the frame was queued, -1 if the
+ * connection is gone (safe to ignore; keep going or stop as you
+ * like). The bytes are copied — the backend keeps ownership of
+ * `data`. Thread-safe: callable from a detached backend thread. */
+typedef int (*drogonr_ws_send_fn)(
+    drogonr_ws_session_t *session,
+    const char *data, size_t len, int binary);
+
+/* Close the connection from the server side. Idempotent; safe after
+ * the peer has already gone. Thread-safe. */
+typedef void (*drogonr_ws_close_fn)(
+    drogonr_ws_session_t *session);
+
+/* Non-zero if the connection is still open. A backend-side hint only
+ * (e.g. skip starting expensive work if already disconnected) — not
+ * required for safety, since send() no-ops on a dead connection.
+ * Thread-safe.
+ *
+ * Cheap by design (one mutex lock + a connected() read), so a batched
+ * backend SHOULD poll it between decode steps to drop a disconnected
+ * connection from the batch promptly rather than spend compute on a
+ * peer that has already gone. */
+typedef int (*drogonr_ws_is_connected_fn)(
+    drogonr_ws_session_t *session);
+
+/* WebSocket handler.
+ *
+ * Called once per event. `msg`/`len` are the frame payload for
+ * DROGONR_WS_MESSAGE (NULL / 0 otherwise); `binary` is non-zero for
+ * a binary frame. `msg` is owned by drogonR and valid only for the
+ * duration of the call — copy it if you need it later.
+ *
+ * Return value is currently ignored (reserved; return 0). */
+typedef int (*drogonr_ws_handler_t)(
+    drogonr_ws_session_t      *session,
+    drogonr_ws_event_t         event,
+    const char                *msg,     size_t len,
+    int                        binary,
+    drogonr_ws_send_fn         send,
+    drogonr_ws_close_fn        close,
+    drogonr_ws_is_connected_fn is_connected);
+
 #ifdef __cplusplus
 }
 #endif

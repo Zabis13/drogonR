@@ -153,6 +153,19 @@ class TRANTOR_EXPORT TcpConnection
                                           size_t markLen) = 0;
 
     /**
+     * @brief Limit this connection's egress to rate bytes per second,
+     * allowing bursts of up to burst bytes. rate == 0 disables shaping.
+     *
+     * drogonR patch. Must be called from the connection's event loop
+     * thread. The default implementation is a no-op so connection types
+     * that do not own a socket (e.g. WebSocketConnectionImpl) are
+     * unaffected.
+     */
+    virtual void setRateLimit(size_t /*rate*/, size_t /*burst*/)
+    {
+    }
+
+    /**
      * @brief Set the TCP_NODELAY option to the socket.
      *
      * @param on

@@ -18,6 +18,7 @@ heavy <- c(
   "stream-edge",
   "cpp-stream-routes",
   "rate-limit",
+  "bandwidth",
   "ws-happy",
   "ws-routes",
   "ws-room",

@@ -16,6 +16,8 @@
 #include <drogon/HttpResponse.h>
 #include <drogon/utils/Utilities.h>
 #include <trantor/utils/Logger.h>
+#include <trantor/net/inner/RateLimitBucket.h>  // drogonR patch
+#include <atomic>  // drogonR patch: libc++ no longer pulls this in transitively
 #include <functional>
 #include <memory>
 #include <utility>
@@ -113,6 +115,10 @@ void HttpServer::onConnection(const TcpConnectionPtr &conn)
 {
     if (conn->connected())
     {
+        // drogonR patch: apply the configured egress shaping, if any.
+        const auto &rl = trantor::RateLimitConfig::instance();
+        if (rl.rate != 0)
+            conn->setRateLimit(rl.rate, rl.burst);
         auto parser = std::make_shared<HttpRequestParser>(conn);
         parser->reset();
         conn->setContext(parser);

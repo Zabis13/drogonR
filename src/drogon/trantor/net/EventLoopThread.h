@@ -17,6 +17,7 @@
 #include <trantor/net/EventLoop.h>
 #include <trantor/utils/NonCopyable.h>
 #include <trantor/exports.h>
+#include <atomic>  // drogonR patch: libc++ no longer pulls this in transitively
 #include <mutex>
 #include <thread>
 #include <memory>

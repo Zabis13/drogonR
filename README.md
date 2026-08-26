@@ -218,6 +218,25 @@ match set). Per-IP throttling is intentionally out of scope — do
 that in a reverse proxy. See `vignette("rate-limiting",
 package = "drogonR")`.
 
+### Bandwidth shaping
+
+Where rate limiting caps *requests*, `bandwidth` caps *bytes*. Each
+connection gets its own token bucket, enforced on the I/O thread as
+the response is written — it covers every response body, including
+static files, chunked streams and WebSocket frames.
+
+```r
+# 1 MiB/s per connection, allowing a 2 MiB burst from idle.
+dr_serve(app, port = 8080,
+         bandwidth       = 1024 * 1024,
+         bandwidth_burst = 2 * 1024 * 1024)
+```
+
+The limit is per connection, not a server-wide total; `bandwidth = 0`
+(the default) disables shaping entirely and costs nothing. Under TLS
+it applies to the plaintext, so bytes on the wire exceed it slightly
+by the size of the TLS record framing.
+
 ### WebSocket
 
 Register a full-duplex WebSocket endpoint with `dr_ws()`. Unlike the

@@ -17,6 +17,7 @@
 #include "impl_forwards.h"
 #include <drogon/WebSocketConnection.h>
 #include <json/value.h>
+#include <atomic>  // drogonR patch: libc++ no longer pulls this in transitively
 #include <string_view>
 #include <trantor/utils/NonCopyable.h>
 #include <trantor/net/TcpConnection.h>

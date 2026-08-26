@@ -16,6 +16,7 @@
 #include "HttpRequestImpl.h"
 
 #include <drogon/RequestStream.h>
+#include <atomic>  // drogonR patch: libc++ no longer pulls this in transitively
 #include <variant>
 
 namespace drogon

@@ -17,6 +17,7 @@
 #include <drogon/HttpAppFramework.h>
 #include <drogon/config.h>
 #include <json/json.h>
+#include <atomic>  // drogonR patch: libc++ no longer pulls this in transitively
 #include <functional>
 #include <memory>
 #include <string>

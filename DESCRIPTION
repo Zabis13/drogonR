@@ -1,7 +1,7 @@
 Package: drogonR
 Type: Package
 Title: High-Performance HTTP Server for R via 'Drogon'
-Version: 0.1.8
+Version: 0.1.9
 Authors@R: c(
     person("Yuri", "Baramykov",
         email = "lbsbmsu@mail.ru",

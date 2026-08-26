@@ -402,13 +402,27 @@ void TcpConnectionImpl::sendInLoop(const char *buffer, size_t length)
     if (!ioChannelPtr_->isWriting() && writeBufferList_.empty())
     {
         // send directly
-        sendLen = writeInLoop(buffer, length);
-        if (sendLen < 0)
+        // drogonR patch: cap the direct write to the bucket. What the
+        // bucket refuses falls through to writeBufferList_ below and is
+        // drained by writeCallback() under the same shaping.
+        auto direct = length;
+        if (rateLimitBucket_.enabled())
+            direct = rateLimitBucket_.allowance(length);
+        if (direct > 0)
         {
-            LOG_TRACE << "write error";
-            return;
+            sendLen = writeInLoop(buffer, direct);
+            if (sendLen < 0)
+            {
+                LOG_TRACE << "write error";
+                return;
+            }
+            rateLimitBucket_.consume(static_cast<size_t>(sendLen));
+            length -= sendLen;
         }
-        length -= sendLen;
+        else
+        {
+            pauseForRateLimit();
+        }
     }
     if (length > 0 && status_ == ConnStatus::Connected)
     {
@@ -434,6 +448,14 @@ void TcpConnectionImpl::sendInLoop(const char *buffer, size_t length)
             highWaterMarkCallback_(
                 shared_from_this(),
                 tlsProviderPtr_->getBufferedData().readableBytes());
+        }
+        // drogonR patch: the bucket, not a full kernel buffer, is what
+        // stopped us here, so the socket stays writable and the poller
+        // would never schedule the drain on its own. Arm the refill timer
+        // so the remainder in writeBufferList_ actually goes out.
+        if (rateLimitBucket_.enabled() && !ioChannelPtr_->isWriting())
+        {
+            pauseForRateLimit();
         }
     }
 }
@@ -666,6 +688,38 @@ void TcpConnectionImpl::sendStream(
     }
 }
 
+// drogonR patch: park the connection until the token bucket has refilled,
+// then resume writing. Called only from loop_'s thread.
+void TcpConnectionImpl::pauseForRateLimit()
+{
+    if (rateLimitTimerPending_)
+        return;
+    rateLimitTimerPending_ = true;
+    if (ioChannelPtr_->isWriting())
+        ioChannelPtr_->disableWriting();
+    loop_->runAfter(rateLimitBucket_.delayForTokens(),
+                    [weakSelf = std::weak_ptr<TcpConnectionImpl>(
+                         shared_from_this())]() {
+                        auto self = weakSelf.lock();
+                        if (!self)
+                            return;
+                        self->rateLimitTimerPending_ = false;
+                        if (self->status_ != ConnStatus::Connected)
+                            return;
+                        if (self->writeBufferList_.empty())
+                            return;
+                        // The socket is almost certainly still writable --
+                        // we stopped because the bucket was empty, not
+                        // because the kernel buffer was full -- so simply
+                        // re-arming the poller would not schedule anything.
+                        // Re-enter the drain path directly instead; it
+                        // re-arms writing itself if a short write occurs.
+                        if (!self->ioChannelPtr_->isWriting())
+                            self->ioChannelPtr_->enableWriting();
+                        self->writeCallback();
+                    });
+}
+
 ssize_t TcpConnectionImpl::sendNodeInLoop(const BufferNodePtr &nodePtr)
 {
     loop_->assertInLoopThread();
@@ -680,6 +734,18 @@ ssize_t TcpConnectionImpl::sendNodeInLoop(const BufferNodePtr &nodePtr)
             LOG_ERROR << "0 or negative bytes to send";
             return -1;
         }
+        // drogonR patch: clamp the sendfile() window to the bucket.
+        if (rateLimitBucket_.enabled())
+        {
+            auto capped = rateLimitBucket_.allowance(static_cast<size_t>(
+                toSend < kMaxSendBytes ? toSend : kMaxSendBytes));
+            if (capped == 0)
+            {
+                pauseForRateLimit();
+                return 0;
+            }
+            toSend = static_cast<long long>(capped);
+        }
         auto bytesSent =
             sendfile(socketPtr_->fd(),
                      nodePtr->getFd(),
@@ -690,6 +756,8 @@ ssize_t TcpConnectionImpl::sendNodeInLoop(const BufferNodePtr &nodePtr)
         {
             nodePtr->retrieve(bytesSent);
             bytesSent_ += bytesSent;
+            rateLimitBucket_.consume(  // drogonR patch
+                static_cast<size_t>(bytesSent));
         }
         else if (!isEAGAIN())
             return -1;
@@ -718,11 +786,25 @@ ssize_t TcpConnectionImpl::sendNodeInLoop(const BufferNodePtr &nodePtr)
             nodePtr->done();
             break;
         }
+        // drogonR patch: shrink this write to what the bucket allows; if it
+        // allows nothing, park the connection and resume on refill.
+        if (rateLimitBucket_.enabled())
+        {
+            auto capped = rateLimitBucket_.allowance(len);
+            if (capped == 0)
+            {
+                pauseForRateLimit();
+                break;
+            }
+            len = capped;
+        }
         auto nWritten = writeInLoop(data, len);
         if (nWritten >= 0)
         {
             hasSent += nWritten;
             nodePtr->retrieve(nWritten);
+            rateLimitBucket_.consume(  // drogonR patch
+                static_cast<size_t>(nWritten));
             if (static_cast<std::size_t>(nWritten) < len)
             {
                 break;
@@ -989,11 +1071,26 @@ void TcpConnectionImpl::sendAsyncDataInLoop(const BufferNodePtr &node,
             if (!writeBufferList_.empty() && node == writeBufferList_.front() &&
                 node->remainingBytes() == 0)
             {
-                auto nWritten = writeInLoop(data, len);
-                if (nWritten < 0)
+                // drogonR patch: same shaping as the sendInLoop() fast
+                // path -- what the bucket refuses is appended to the node
+                // and drained later by writeCallback().
+                auto direct = len;
+                if (rateLimitBucket_.enabled())
+                    direct = rateLimitBucket_.allowance(len);
+                ssize_t nWritten = 0;
+                if (direct > 0)
                 {
-                    LOG_TRACE << "write error";
-                    return;
+                    nWritten = writeInLoop(data, direct);
+                    if (nWritten < 0)
+                    {
+                        LOG_TRACE << "write error";
+                        return;
+                    }
+                    rateLimitBucket_.consume(static_cast<size_t>(nWritten));
+                }
+                else
+                {
+                    pauseForRateLimit();
                 }
                 if (static_cast<size_t>(nWritten) < len)
                 {

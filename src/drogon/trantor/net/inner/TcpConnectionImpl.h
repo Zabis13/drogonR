@@ -18,6 +18,7 @@
 #include <trantor/utils/TimingWheel.h>
 #include <trantor/net/inner/TLSProvider.h>
 #include <trantor/net/inner/BufferNode.h>
+#include <trantor/net/inner/RateLimitBucket.h>  // drogonR patch
 #include <list>
 #include <mutex>
 #ifndef _WIN32
@@ -116,6 +117,14 @@ class TcpConnectionImpl : public TcpConnection,
     {
         highWaterMarkCallback_ = cb;
         highWaterMarkLen_ = markLen;
+    }
+
+    // drogonR patch: cap this connection's egress at rate bytes/sec with a
+    // burst allowance. rate == 0 disables shaping. Must be called from
+    // loop_'s thread (in practice: from the connection callback).
+    void setRateLimit(size_t rate, size_t burst) override
+    {
+        rateLimitBucket_ = RateLimitBucket(rate, burst);
     }
 
     void keepAlive() override
@@ -252,6 +261,13 @@ class TcpConnectionImpl : public TcpConnection,
 #endif
     size_t highWaterMarkLen_{0};
     std::string name_;
+
+    // drogonR patch: per-connection egress shaping. Touched only from
+    // loop_'s thread, hence no synchronisation. rateLimitTimerPending_
+    // guards against arming more than one refill timer at a time.
+    RateLimitBucket rateLimitBucket_;
+    bool rateLimitTimerPending_{false};
+    void pauseForRateLimit();
 
     size_t bytesSent_{0};
     size_t bytesReceived_{0};

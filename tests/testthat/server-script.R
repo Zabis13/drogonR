@@ -22,6 +22,9 @@ cfg <- readRDS(args[[1L]])
 suppressPackageStartupMessages(library(drogonR))
 
 app <- cfg$setup(dr_app())
-dr_serve(app, port = as.integer(cfg$port), threads = 1L)
+# Optional egress shaping; absent from most payloads, hence the defaults.
+dr_serve(app, port = as.integer(cfg$port), threads = 1L,
+         bandwidth       = if (is.null(cfg$bandwidth)) 0 else cfg$bandwidth,
+         bandwidth_burst = cfg$bandwidth_burst)
 
 repeat later::run_now(timeoutSecs = 3600)

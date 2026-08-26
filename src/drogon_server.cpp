@@ -30,6 +30,7 @@
 
 // drogonR-cpp-stream: TcpConnection/setUserCloseCallback live here.
 #include <trantor/net/TcpConnection.h>
+#include <trantor/net/inner/RateLimitBucket.h>
 
 namespace drogonR {
 
@@ -976,6 +977,28 @@ SEXP drogonR_clear_routes(void) {
 //   routes   (NULL or character vector of "/" prefixes)
 // R-side dr_rate_limit() already validates these — we still defensively
 // type-check here because anyone calling .Call() directly bypasses R.
+// Per-connection egress bandwidth shaping. Sets the process-wide default
+// that HttpServer::onConnection applies to each new connection, so it must
+// be set before the server starts accepting. rate == 0 disables shaping.
+SEXP drogonR_set_bandwidth(SEXP rate_, SEXP burst_) {
+    if (drogonR::g_running.load()) {
+        Rf_error("dr_serve: cannot change bandwidth shaping while the "
+                 "server is running. Stop it first with dr_stop().");
+    }
+    double rate  = Rf_asReal(rate_);
+    double burst = Rf_asReal(burst_);
+    if (!R_FINITE(rate) || rate < 0) {
+        Rf_error("bandwidth must be a single non-negative number");
+    }
+    if (!R_FINITE(burst) || burst < 0) {
+        Rf_error("bandwidth_burst must be a single non-negative number");
+    }
+    auto &cfg = trantor::RateLimitConfig::instance();
+    cfg.rate  = static_cast<size_t>(rate);
+    cfg.burst = static_cast<size_t>(burst);
+    return R_NilValue;
+}
+
 SEXP drogonR_register_rate_limits(SEXP rules_) {
     if (drogonR::g_running.load()) {
         Rf_error("dr_register_rate_limits: cannot register rate limits "

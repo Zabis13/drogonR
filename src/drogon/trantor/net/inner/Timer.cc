@@ -14,6 +14,7 @@
 
 #include "Timer.h"
 #include <trantor/utils/Logger.h>
+#include <atomic>  // drogonR patch: libc++ no longer pulls this in transitively
 #include <trantor/net/EventLoop.h>
 
 namespace trantor

@@ -16,6 +16,7 @@
 
 #include <trantor/utils/TaskQueue.h>
 #include <trantor/exports.h>
+#include <atomic>  // drogonR patch: libc++ no longer pulls this in transitively
 #include <list>
 #include <memory>
 #include <vector>

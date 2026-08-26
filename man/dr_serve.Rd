@@ -12,7 +12,9 @@ dr_serve(
   on_worker_start = NULL,
   max_queue = 1024L,
   cpp_workers = 4L,
-  upload_path = NULL
+  upload_path = NULL,
+  bandwidth = 0,
+  bandwidth_burst = NULL
 )
 }
 \arguments{
@@ -52,6 +54,19 @@ Defaults to `NULL`, in which case a fresh subdirectory inside
 [tempdir()] is created so the package never writes to the user's
 home filespace or the installation directory. Pass an explicit
 path to override.}
+
+\item{bandwidth}{Egress limit in bytes per second applied to **each**
+connection independently (not a server-wide total). `0`, the
+default, disables shaping. Shaping covers every response body —
+including static files, chunked streams and WebSocket frames —
+and is enforced on Drogon's I/O thread with no R involvement.
+Under TLS the limit applies to the plaintext, so bytes on the wire
+exceed it slightly by the size of the TLS record framing.}
+
+\item{bandwidth_burst}{Token-bucket capacity in bytes, i.e. how much
+an idle connection may send at full speed before being held to
+`bandwidth`. Defaults to `2 * bandwidth`. Values below one MTU are
+raised to 1500 bytes internally.}
 }
 \value{
 `NULL`, invisibly. Prints a one-line listening message.

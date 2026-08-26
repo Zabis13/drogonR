@@ -1,3 +1,12 @@
+# drogonR 0.1.9
+
+* `dr_serve(bandwidth =, bandwidth_burst =)` — per-connection egress
+  bandwidth shaping via a token bucket on the I/O thread. Covers static
+  files, streams and WebSocket frames; off by default.
+* Build fix for clang trunk / libc++: added the explicit `<atomic>`
+  include that the bundled Drogon and Trantor sources had been getting
+  transitively.
+
 # drogonR 0.1.8
 
 * WebSocket support (full-duplex, long-lived connections):

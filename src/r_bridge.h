@@ -210,6 +210,7 @@ SEXP drogonR_register_route(SEXP method_, SEXP path_, SEXP regex_,
                             SEXP param_names_, SEXP handler_);
 SEXP drogonR_register_static(SEXP mount_, SEXP dir_);
 SEXP drogonR_register_rate_limits(SEXP rules_);
+SEXP drogonR_set_bandwidth(SEXP rate_, SEXP burst_);
 SEXP drogonR_resolve_ccallable(SEXP package_, SEXP callable_);
 SEXP drogonR_register_cpp_route(SEXP method_, SEXP path_, SEXP regex_,
                                 SEXP param_names_, SEXP ptr_);

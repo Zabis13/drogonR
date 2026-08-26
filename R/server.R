@@ -464,6 +464,17 @@ dr_post_cpp_stream <- function(app, path, package, callable,
 #'   [tempdir()] is created so the package never writes to the user's
 #'   home filespace or the installation directory. Pass an explicit
 #'   path to override.
+#' @param bandwidth Egress limit in bytes per second applied to **each**
+#'   connection independently (not a server-wide total). `0`, the
+#'   default, disables shaping. Shaping covers every response body —
+#'   including static files, chunked streams and WebSocket frames —
+#'   and is enforced on Drogon's I/O thread with no R involvement.
+#'   Under TLS the limit applies to the plaintext, so bytes on the wire
+#'   exceed it slightly by the size of the TLS record framing.
+#' @param bandwidth_burst Token-bucket capacity in bytes, i.e. how much
+#'   an idle connection may send at full speed before being held to
+#'   `bandwidth`. Defaults to `2 * bandwidth`. Values below one MTU are
+#'   raised to 1500 bytes internally.
 #'
 #' @return `NULL`, invisibly. Prints a one-line listening message.
 #' @examples
@@ -484,7 +495,9 @@ dr_serve <- function(app, port = 8080L, threads = 1L,
                      on_worker_start = NULL,
                      max_queue = 1024L,
                      cpp_workers = 4L,
-                     upload_path = NULL) {
+                     upload_path = NULL,
+                     bandwidth = 0,
+                     bandwidth_burst = NULL) {
   .dr_check_app(app)
   if (isTRUE(.Call(drogonR_server_running))) {
     stop("a drogonR server is already running in this process; ",
@@ -509,6 +522,22 @@ dr_serve <- function(app, port = 8080L, threads = 1L,
   }
   if (length(cpp_workers) != 1L || is.na(cpp_workers) || cpp_workers < 1L) {
     stop("`cpp_workers` must be a single integer >= 1", call. = FALSE)
+  }
+  bandwidth <- as.numeric(bandwidth)
+  if (length(bandwidth) != 1L || is.na(bandwidth) || bandwidth < 0) {
+    stop("`bandwidth` must be a single non-negative number of bytes/sec",
+         call. = FALSE)
+  }
+  if (is.null(bandwidth_burst)) {
+    # A bucket of 2x the rate lets a freshly idle connection absorb a
+    # short spike without breaching the sustained limit.
+    bandwidth_burst <- bandwidth * 2
+  }
+  bandwidth_burst <- as.numeric(bandwidth_burst)
+  if (length(bandwidth_burst) != 1L || is.na(bandwidth_burst) ||
+      bandwidth_burst < 0) {
+    stop("`bandwidth_burst` must be a single non-negative number of bytes",
+         call. = FALSE)
   }
   if (workers > 1L && .Platform$OS.type == "windows") {
     stop("workers > 1 is not supported on Windows (no fork())",
@@ -547,6 +576,7 @@ dr_serve <- function(app, port = 8080L, threads = 1L,
     has_onerr  <- !is.null(app$on_error)
     .Call(drogonR_clear_routes)
     .Call(drogonR_register_rate_limits, app$rate_limits)
+    .Call(drogonR_set_bandwidth, bandwidth, bandwidth_burst)
     for (r in app$routes) {
       reg <- if (has_mw || has_onerr)
         .dr_wrap_handler(r$handler, app) else r$handler

@@ -2,6 +2,7 @@
 
 #include <set>
 #include <future>
+#include <atomic>  // drogonR patch: libc++ no longer pulls this in transitively
 #include <condition_variable>
 
 namespace drogon

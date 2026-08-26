@@ -1,6 +1,16 @@
-## Initial submission (0.1.0)
+## Submission (0.1.9)
 
-This is the first submission of drogonR to CRAN.
+This release fixes the clang trunk / libc++ build failure reported on the
+CRAN check page:
+
+```
+drogon/trantor/utils/ConcurrentTaskQueue.h:85:10: error:
+  no type named 'atomic_bool' in namespace 'std'
+```
+
+Recent libc++ no longer pulls `<atomic>` in transitively, so an explicit
+`#include <atomic>` was added to every bundled Drogon/Trantor source that
+uses `std::atomic*` (8 files). No R-level changes.
 
 drogonR provides an R interface to the Drogon C++ HTTP server framework,
 intended as a high-performance alternative to plumber for serving REST
@@ -37,9 +47,7 @@ Installation requires compiling vendored Drogon C++ HTTP framework
 ## Test environments
 
 * Local: Linux (Ubuntu 24.04), R 4.3.3, GCC 13.3.0
-* (additional environments will be added before submission:
-  win-builder R-devel, Debian via R-hub)
 
 ## Downstream dependencies
 
-None — initial release.
+None.

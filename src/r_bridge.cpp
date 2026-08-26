@@ -39,6 +39,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"drogonR_register_route",     (DL_FUNC) &drogonR_register_route,     5},
     {"drogonR_register_static",    (DL_FUNC) &drogonR_register_static,    2},
     {"drogonR_register_rate_limits", (DL_FUNC) &drogonR_register_rate_limits, 1},
+    {"drogonR_set_bandwidth", (DL_FUNC) &drogonR_set_bandwidth, 2},
     {"drogonR_resolve_ccallable",  (DL_FUNC) &drogonR_resolve_ccallable,  2},
     {"drogonR_register_cpp_route", (DL_FUNC) &drogonR_register_cpp_route, 5},
     {"drogonR_register_cpp_stream_route",
